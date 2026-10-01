@@ -13,7 +13,7 @@ const report = await runScan(parsed.domain);
 if (args.includes("--json")) {
   console.log(JSON.stringify(report, null, 2));
 } else {
-  const icon = { pass: "✅", warn: "⚠️ ", fail: "❌", info: "ℹ️ " };
+  const icon = { pass: "✅", warn: "⚠️ ", fail: "❌", unknown: "❔", info: "ℹ️ " };
   console.log(`\n${report.domain}: grade ${report.grade ?? "n/a"} (${report.score ?? "–"}/100) · ${report.provider.name}\n`);
   for (const c of report.checks) console.log(`${icon[c.status]} ${c.title}\n   ${c.summary}\n   ${c.detail}\n`);
 }
