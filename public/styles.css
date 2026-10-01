@@ -119,7 +119,9 @@ button { font: inherit; cursor: pointer; }
 [data-status="pass"].pill, .status[data-status="pass"] { color: var(--pass); background: var(--pass-bg); }
 [data-status="warn"].pill, .status[data-status="warn"] { color: var(--warn); background: var(--warn-bg); }
 [data-status="fail"].pill, .status[data-status="fail"] { color: var(--fail); background: var(--fail-bg); }
-[data-status="info"].pill, .status[data-status="info"] { color: var(--info); background: var(--info-bg); }
+[data-status="info"].pill, .status[data-status="info"],
+[data-status="unknown"].pill, .status[data-status="unknown"] { color: var(--info); background: var(--info-bg); }
+.check[data-status="unknown"] { border-left-style: dashed; }
 .summary-actions { display: flex; flex-direction: column; gap: 8px; }
 .btn-ghost {
   background: var(--surface-2); color: var(--text); border: 1px solid var(--border);

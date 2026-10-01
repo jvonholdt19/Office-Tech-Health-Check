@@ -12,7 +12,9 @@ A free, 30-second report card for a small business's domain. Enter `yourbusiness
 | Website | SSL certificate valid for apex and `www`, not expiring within 14 days | 15 |
 | Website | `http://` redirects to `https://` | 10 |
 
-Pass = full points, warning = half, fail = 0. Checks that can't run (no website, registry without RDAP) are left out of the score. Grades: A ≥ 90, B ≥ 80, C ≥ 70, D ≥ 60, otherwise F.
+Pass = full points, warning = half, fail = 0. Not-applicable checks (no website, no email) are left out. Checks that *couldn't be verified* (lookup failed, custom DKIM selector) are also left out of the score, but are listed on the report with the % of checks the grade is based on. No grade is shown below 50% coverage. Grades: A ≥ 90, B ≥ 80, C ≥ 70, D ≥ 60, otherwise F.
+
+The weights are our own judgment, not an industry standard. The pass/warn/fail findings follow RFC 7208 (SPF), RFC 7489 (DMARC), RFC 6376 (DKIM), RFC 7505 (null MX) and RFC 9083 (RDAP).
 
 ## Stack
 
@@ -26,7 +28,7 @@ There are no dependencies.
 ```bash
 npm run dev                          # http://localhost:3000
 npm run scan -- acmeaccounting.com   # CLI report (add --json for raw output)
-npm test                             # 16 unit tests, no network needed
+npm test                             # 26 unit tests, no network needed
 ```
 
 ## Deploy

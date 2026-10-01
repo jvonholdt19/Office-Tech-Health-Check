@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeDomain } from "../lib/domain.js";
 import { identifyProvider, parseSpf, countSpfLookups, checkSpf, checkDmarc, checkDkim, parseDmarc } from "../lib/checks/email.js";
-import { checkSsl, checkHttpsRedirect, checkDomainRegistration } from "../lib/checks/web.js";
+import { checkSsl, checkHttpsRedirect, checkDomainRegistration, summarizeRdap } from "../lib/checks/web.js";
+import { fetchRdap } from "../lib/net.js";
 import { runScan, scoreChecks, gradeFor } from "../lib/scan.js";
 import { fakeDeps, fakeResolver, goodTls, rdapData } from "./fakes.js";
 
@@ -148,8 +149,14 @@ test("Domain registration: healthy, expiring, unlocked, unavailable", async () =
   r = await checkDomainRegistration("acme.com", fakeDeps({ rdap: rdapData({ locked: false }) }));
   assert.equal(r.status, "warn");
 
+  // Registry unreachable: "couldn't verify", which is excluded from the score but shown
   r = await checkDomainRegistration("acme.com", fakeDeps());
+  assert.equal(r.status, "unknown");
+
+  // Extension with no public RDAP service: not applicable
+  r = await checkDomainRegistration("acme.co.xx", fakeDeps({ rdap: { ok: false, unsupported: true, error: "no RDAP" } }));
   assert.equal(r.status, "info");
+  assert.equal(r.weight, 0);
 });
 
 test("scoring and grades", () => {
@@ -194,7 +201,7 @@ test("runScan: a neglected office gets an F with a fix list", async () => {
   assert.ok(report.fixes.some((f) => f.id === "email-platform"), "suggests moving off bundled hosting email");
 });
 
-test("runScan: a check that throws becomes an info row, not a crash", async () => {
+test("runScan: a check that throws becomes a 'couldn't verify' row, not a crash", async () => {
   const d = "acme.com";
   const deps = fakeDeps({ mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] } });
   deps.resolver.resolveTxt = async () => {
@@ -202,6 +209,130 @@ test("runScan: a check that throws becomes an info row, not a crash", async () =
   };
   const report = await runScan(d, deps);
   const spf = report.checks.find((c) => c.id === "spf");
-  assert.equal(spf.status, "info");
+  assert.equal(spf.status, "unknown");
   assert.match(spf.summary, /couldn't be completed/);
+  assert.ok(report.unverified.some((u) => u.id === "spf"), "listed as unverified");
+  assert.ok(report.coverage < 100);
+});
+
+/* ---- Regression tests from the live 20-domain validation run (2026-10-01) ---- */
+
+test("live bug: SPF that authorises Google via _netblocks (vercel.com pattern) is not flagged", async () => {
+  const d = "acme.com";
+  const r = await checkSpf(d, fakeDeps({ txt: {
+    [d]: ["v=spf1 include:_netblocks.google.com include:sendgrid.net ~all"],
+    "_netblocks.google.com": ["v=spf1 ip4:74.125.0.0/16 ~all"],
+    "sendgrid.net": ["v=spf1 ip4:1.2.3.4 -all"],
+  } }), google);
+  assert.equal(r.status, "pass");
+});
+
+test("live bug: Microsoft 365 authorised through a nested include (microsoft.com / godaddy.com pattern)", async () => {
+  const d = "acme.com";
+  const r = await checkSpf(d, fakeDeps({ txt: {
+    [d]: ["v=spf1 include:_spf-a.acme.com -all"],
+    "_spf-a.acme.com": ["v=spf1 include:spf.protection.outlook.com -all"],
+    "spf.protection.outlook.com": ["v=spf1 ip4:40.92.0.0/15 -all"],
+  } }), microsoft);
+  assert.equal(r.status, "pass");
+});
+
+test("SPF still warns when the platform is genuinely missing from the whole include tree", async () => {
+  const d = "acme.com";
+  const r = await checkSpf(d, fakeDeps({ txt: { [d]: ["v=spf1 include:mailgun.org ~all"], "mailgun.org": ["v=spf1 ip4:1.2.3.4 -all"] } }), microsoft);
+  assert.equal(r.status, "warn");
+});
+
+test("live bug: null MX (example.com) is 'no email', and DKIM is not applicable", async () => {
+  const d = "example.com";
+  assert.equal(identifyProvider([{ exchange: "", priority: 0 }]).key, "nullmx");
+  const report = await runScan(d, fakeDeps({
+    mx: { [d]: [{ exchange: "", priority: 0 }] },
+    txt: { [d]: ["v=spf1 -all"], [`_dmarc.${d}`]: ["v=DMARC1;p=reject;sp=reject"] },
+  }));
+  const dkim = report.checks.find((c) => c.id === "dkim");
+  assert.equal(dkim.status, "info");
+  assert.equal(dkim.weight, 0);
+  assert.equal(report.provider.key, "nullmx");
+});
+
+test("live bug: custom DKIM selector with enforced DMARC (google.com pattern) is 'couldn't verify', not a warning", async () => {
+  const d = "acme.com";
+  const report = await runScan(d, fakeDeps({
+    mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
+    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:74.125.0.0/16 ~all"], [`_dmarc.${d}`]: ["v=DMARC1; p=reject; rua=mailto:x@acme.com"] },
+  }));
+  assert.equal(report.checks.find((c) => c.id === "dkim").status, "unknown");
+});
+
+test("missing DKIM with no DMARC enforcement is still a warning", async () => {
+  const d = "acme.com";
+  const report = await runScan(d, fakeDeps({
+    mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
+    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], [`_dmarc.${d}`]: ["v=DMARC1; p=none"] },
+  }));
+  assert.equal(report.checks.find((c) => c.id === "dkim").status, "warn");
+});
+
+test("live bug: enterprise email filters are named, not called 'self-hosted'", () => {
+  assert.equal(identifyProvider([{ exchange: "mx1.intuit.iphmx.com", priority: 5 }]).key, "cisco");
+  assert.equal(identifyProvider([{ exchange: "mxa.global.inbound.cf-emailsecurity.net", priority: 5 }]).key, "cloudflare");
+  assert.equal(identifyProvider([{ exchange: "mail.acme.com", priority: 5 }]).name, "Other email provider");
+});
+
+test("grade is withheld when less than half the weighted checks could be verified", async () => {
+  const d = "acme.com";
+  const deps = fakeDeps({ mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] }, tls: { [d]: goodTls }, http: { ok: true, status: 301, location: "https://acme.com/" } });
+  deps.resolver.resolveTxt = async () => { throw Object.assign(new Error("SERVFAIL"), { code: "ESERVFAIL" }); };
+  const report = await runScan(d, deps);
+  assert.equal(report.grade, null);
+  assert.ok(report.unverified.length >= 3);
+});
+
+test("summarizeRdap parses real registry responses (Verisign .com, PIR .org, captured 2026-10-01)", () => {
+  const verisign = {
+    events: [
+      { eventAction: "registration", eventDate: "1997-09-15T04:00:00Z" },
+      { eventAction: "expiration", eventDate: "2028-09-14T04:00:00Z" },
+      { eventAction: "last changed", eventDate: "2019-09-09T15:39:04Z" },
+    ],
+    status: ["client delete prohibited", "client transfer prohibited", "client update prohibited", "server delete prohibited", "server transfer prohibited", "server update prohibited"],
+    secureDNS: { delegationSigned: false },
+    entities: [{ roles: ["registrar"], vcardArray: ["vcard", [["version", {}, "text", "4.0"], ["fn", {}, "text", "MarkMonitor Inc."]]] }],
+  };
+  assert.deepEqual(summarizeRdap(verisign), {
+    expiry: "2028-09-14T04:00:00Z", registered: "1997-09-15T04:00:00Z", registrar: "MarkMonitor Inc.", transferLocked: true, dnssec: false,
+  });
+  const pir = {
+    events: [
+      { eventAction: "transfer", eventDate: "2006-09-12T02:40:41.291Z" },
+      { eventAction: "expiration", eventDate: "2027-01-23T05:00:00Z" },
+      { eventAction: "registration", eventDate: "1998-01-24T05:00:00.291Z" },
+    ],
+    status: ["client transfer prohibited", "server transfer prohibited"],
+    secureDNS: { delegationSigned: false, maxSigLife: 1 },
+    entities: [{ roles: ["registrar"], vcardArray: ["vcard", [["version", {}, "text", "4.0"], ["fn", {}, "text", "MarkMonitor Inc."]]] }],
+  };
+  const p = summarizeRdap(pir);
+  assert.equal(p.expiry, "2027-01-23T05:00:00Z");
+  assert.equal(p.registered, "1998-01-24T05:00:00.291Z");
+  assert.equal(p.transferLocked, true);
+});
+
+test("fetchRdap asks the registry directly, then falls back to rdap.org", async () => {
+  const calls = [];
+  const fake = (responses) => async (url) => {
+    calls.push(url);
+    const hit = Object.entries(responses).find(([k]) => url.startsWith(k));
+    const [status, body] = hit ? hit[1] : [404, {}];
+    return { ok: status < 400, status, json: async () => body };
+  };
+  let r = await fetchRdap("acme.com", { fetchImpl: fake({ "https://rdap.verisign.com/com/v1/domain/acme.com": [200, { ldhName: "ACME.COM" }] }) });
+  assert.equal(r.ok, true);
+  assert.equal(calls[0], "https://rdap.verisign.com/com/v1/domain/acme.com");
+
+  calls.length = 0;
+  r = await fetchRdap("acme.com", { fetchImpl: fake({ "https://rdap.verisign.com": [503, {}], "https://rdap.org/": [200, { ldhName: "ACME.COM" }] }) });
+  assert.equal(r.ok, true);
+  assert.deepEqual(calls.map((u) => new URL(u).host), ["rdap.verisign.com", "rdap.org"]);
 });

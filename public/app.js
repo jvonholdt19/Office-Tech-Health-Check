@@ -28,7 +28,7 @@ const els = {
   template: $("check-template"),
 };
 
-const STATUS_LABEL = { pass: "Good", warn: "Needs attention", fail: "At risk", info: "FYI" };
+const STATUS_LABEL = { pass: "Good", warn: "Needs attention", fail: "At risk", unknown: "Couldn't verify", info: "FYI" };
 const CATEGORY_ORDER = ["Email platform", "Email security", "Domain", "Website"];
 const CATEGORY_BLURB = {
   "Email platform": "Where your business email lives.",
@@ -40,7 +40,7 @@ const CATEGORY_BLURB = {
 function headlineFor(report) {
   const { grade, counts } = report;
   const problems = (counts.fail || 0) + (counts.warn || 0);
-  if (grade === null) return "We couldn't score this domain";
+  if (grade === null) return "Not enough could be checked to give a fair grade";
   if (grade === "A") return "Your office tech basics are in great shape";
   if (grade === "B") return `Solid, with ${problems} thing${problems === 1 ? "" : "s"} worth tightening up`;
   if (grade === "C") return `A few gaps put your business at risk`;
@@ -95,10 +95,13 @@ function renderReport(report) {
   els.grade.dataset.grade = report.grade ?? "none";
   els.domain.textContent = report.domain;
   els.headline.textContent = headlineFor(report);
-  els.meta.textContent = `Email platform: ${report.provider?.name ?? "Unknown"}${report.score !== null ? ` · Score ${report.score}/100` : ""}`;
+  const coverageNote = report.coverage < 100 && report.unverified?.length
+    ? ` · Based on ${report.coverage}% of checks (couldn't verify: ${report.unverified.map((u) => u.title.replace(/\s*\(.*\)$/, "")).join(", ")})`
+    : "";
+  els.meta.textContent = `Email platform: ${report.provider?.name ?? "Unknown"}${report.score !== null && report.grade ? ` · Score ${report.score}/100` : ""}${coverageNote}`;
 
   els.pills.replaceChildren(
-    ...["fail", "warn", "pass"]
+    ...["fail", "warn", "unknown", "pass"]
       .filter((s) => report.counts[s])
       .map((s) => {
         const span = document.createElement("span");
