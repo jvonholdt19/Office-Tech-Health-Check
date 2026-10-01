@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Fix Plan Builder</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231f6feb'/><path d='M9 16.5l4.5 4.5L23 11.5' stroke='white' stroke-width='3.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/plan.css">
+</head>
+<body>
+  <header class="site-header no-print">
+    <div class="wrap header-inner">
+      <a class="brand" href="/plan">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8"/><path d="M9 16.5l4.5 4.5L23 11.5"/></svg></span>
+        <span class="brand-name">Fix Plan Builder <span class="private-tag">Private</span></span>
+      </a>
+      <button type="button" class="link-btn" id="lock-btn" hidden>Lock</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- Passcode gate -->
+    <section class="gate" id="gate">
+      <h1>Fix Plan Builder</h1>
+      <p class="lede">Turn a health check into a client proposal and your technician checklist.</p>
+      <form id="gate-form" class="scan-form" autocomplete="off">
+        <label for="passcode" class="sr-only">Passcode</label>
+        <input id="passcode" type="password" placeholder="Passcode" required>
+        <button type="submit">Unlock</button>
+      </form>
+      <p class="form-error" id="gate-error" role="alert" hidden></p>
+    </section>
+
+    <!-- Domain entry -->
+    <section class="builder" id="builder" hidden>
+      <form id="plan-form" class="scan-form no-print">
+        <label for="domain" class="sr-only">Client domain</label>
+        <input id="domain" type="text" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="clientbusiness.com" required>
+        <button type="submit" id="plan-btn">Build fix plan</button>
+      </form>
+      <p class="form-error" id="plan-error" role="alert" hidden></p>
+      <p class="loading-line no-print" id="plan-loading" hidden><span class="spinner small" aria-hidden="true"></span> Scanning and building the plan…</p>
+
+      <div id="plan-output" hidden>
+        <div class="tabs no-print" role="tablist">
+          <button type="button" role="tab" class="tab active" data-tab="client" aria-selected="true">Client plan</button>
+          <button type="button" role="tab" class="tab" data-tab="tech" aria-selected="false">Technician checklist</button>
+          <span class="tab-actions">
+            <button type="button" class="btn-ghost" id="print-btn">Save as PDF</button>
+          </span>
+        </div>
+        <article id="client-view" class="doc"></article>
+        <article id="tech-view" class="doc" hidden></article>
+      </div>
+    </section>
+  </main>
+
+  <script src="/plan.js" type="module"></script>
+</body>
+</html>

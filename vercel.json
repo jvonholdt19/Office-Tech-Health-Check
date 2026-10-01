@@ -1,8 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "outputDirectory": "public",
+  "cleanUrls": true,
   "functions": {
-    "api/scan.js": { "maxDuration": 30 }
+    "api/scan.js": { "maxDuration": 30 },
+    "api/plan.js": { "maxDuration": 30 }
   },
   "headers": [
     {
@@ -11,6 +13,13 @@
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
         { "key": "X-Frame-Options", "value": "DENY" }
+      ]
+    },
+    {
+      "source": "/plan",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Cache-Control", "value": "no-store" }
       ]
     }
   ]

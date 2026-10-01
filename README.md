@@ -28,12 +28,29 @@ There are no dependencies.
 ```bash
 npm run dev                          # http://localhost:3000
 npm run scan -- acmeaccounting.com   # CLI report (add --json for raw output)
-npm test                             # 26 unit tests, no network needed
+npm test                             # 35 unit tests, no network needed
 ```
 
 ## Deploy
 
 Import the GitHub repo into Vercel with the Framework Preset set to **Other**. No build command or environment variables are needed.
+
+## Fix Plan Builder (private)
+
+`/plan` turns a scan into **two documents**: a client-facing fix plan (plain English, phases, prices, package total, timeline, what access is needed) and a **technician checklist** (exact DNS records with copy buttons, click paths for the client's DNS host, provider-specific DKIM steps, verification and follow-ups).
+
+Rules the generator follows:
+- It only proposes fixes for checks the report marked **At risk** or **Needs attention**. Passing checks are never charged for.
+- Checks marked **Couldn't verify** become free "confirm at kickoff" items.
+- SPF repairs keep every existing sender, merge duplicate records, add the email platform and end in `~all`.
+- DMARC is staged: `p=none` with reports, then `quarantine`, then `reject`.
+
+**Setup (one time):**
+1. Vercel → Project → Settings → Environment Variables → add `PLAN_PASSCODE` (8+ characters) → redeploy. Until it's set, `/api/plan` stays locked (503).
+2. Edit prices, the package, the monthly offer and branding in `lib/config.js`.
+3. DMARC reports for clients go to `BUSINESS.dmarcReportAddress` (default `dmarc@nwimpm.com`). In Cloudflare, nwimpm.com:
+   - Email Routing → add a rule for `dmarc@nwimpm.com`, sending to a mailbox of your choice.
+   - DNS → add TXT `*._report._dmarc` with value `v=DMARC1`. This one wildcard record authorizes reports from every client domain.
 
 ## Customize
 

@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import handler from "../api/scan.js";
+import planHandler from "../api/plan.js";
 
 const root = fileURLToPath(new URL("../public/", import.meta.url));
 const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".ico": "image/x-icon" };
@@ -13,7 +14,9 @@ http
   .createServer(async (req, res) => {
     const { pathname } = new URL(req.url, "http://localhost");
     if (pathname === "/api/scan") return handler(req, res);
-    const file = normalize(join(root, pathname === "/" ? "index.html" : pathname));
+    if (pathname === "/api/plan") return planHandler(req, res);
+    if (pathname === "/plan") req.url = "/plan.html";
+    const file = normalize(join(root, pathname === "/" ? "index.html" : pathname === "/plan" ? "plan.html" : pathname));
     if (!file.startsWith(root)) {
       res.writeHead(403).end();
       return;
