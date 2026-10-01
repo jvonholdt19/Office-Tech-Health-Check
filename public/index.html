@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Office Tech Health Check</title>
+  <meta name="description" content="Free 30-second check of your business email security, domain and website. Plain-English results, no login required.">
+  <meta property="og:title" content="Office Tech Health Check">
+  <meta property="og:description" content="Is your business email easy to fake? Is your domain about to expire? Find out in 30 seconds.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231f6feb'/><path d='M9 16.5l4.5 4.5L23 11.5' stroke='white' stroke-width='3.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="/">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8"/><path d="M9 16.5l4.5 4.5L23 11.5"/></svg>
+        </span>
+        <span class="brand-name">Office Tech Health Check</span>
+      </a>
+      <a class="header-cta" id="header-cta" href="#">Talk to us</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" id="hero">
+      <div class="wrap">
+        <p class="eyebrow">Free · 30 seconds · No login</p>
+        <h1>How healthy is your office tech?</h1>
+        <p class="lede">Enter your business website or email domain. We'll check whether your email can be faked, whether your domain is at risk, and whether your website is secure, and explain it all in plain English.</p>
+
+        <form id="scan-form" class="scan-form" novalidate>
+          <label for="domain" class="sr-only">Business domain</label>
+          <input id="domain" name="domain" type="text" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false"
+                 placeholder="yourbusiness.com" required>
+          <button type="submit" id="scan-btn">Run free check</button>
+        </form>
+        <p class="form-error" id="form-error" role="alert" hidden></p>
+        <p class="fineprint">We only look at public records anyone can see, like DNS and your website's certificate. Nothing is installed, and we never log in to anything.</p>
+      </div>
+    </section>
+
+    <section class="loading wrap" id="loading" hidden aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <ul class="loading-steps" id="loading-steps">
+        <li>Finding your email platform…</li>
+        <li>Checking who's allowed to send as you…</li>
+        <li>Checking anti-impersonation protection…</li>
+        <li>Looking up your domain registration…</li>
+        <li>Testing your website's security…</li>
+      </ul>
+    </section>
+
+    <section class="report wrap" id="report" hidden>
+      <div class="summary-card">
+        <div class="grade" id="grade" aria-label="Overall grade">–</div>
+        <div class="summary-text">
+          <p class="summary-domain" id="summary-domain"></p>
+          <h2 id="summary-headline"></h2>
+          <p class="summary-meta" id="summary-meta"></p>
+          <div class="pills" id="summary-pills"></div>
+        </div>
+        <div class="summary-actions no-print">
+          <button type="button" class="btn-ghost" id="copy-link">Copy link</button>
+          <button type="button" class="btn-ghost" id="print-report">Save as PDF</button>
+        </div>
+      </div>
+
+      <div id="categories"></div>
+
+      <section class="fix-card" id="fix-card" hidden>
+        <h3>What we'd fix</h3>
+        <ol id="fix-list"></ol>
+        <div class="cta no-print">
+          <div>
+            <p class="cta-title">Want these sorted out?</p>
+            <p class="cta-sub">Most of these are fixed in one short session, with no new hardware and no disruption to your team.</p>
+          </div>
+          <a class="btn-primary" id="cta-button" href="#">Book a free 15-minute call</a>
+        </div>
+      </section>
+
+      <p class="report-foot">Checked <span id="scanned-at"></span>. Results come from public records and can change. Some settings (like MFA and backups) can't be seen from outside and need a quick review with you.</p>
+      <p class="no-print"><button type="button" class="link-btn" id="scan-another">Check another domain</button></p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>Office Tech Health Check · Small-office IT &amp; AI setup</p>
+    </div>
+  </footer>
+
+  <template id="check-template">
+    <article class="check">
+      <div class="check-head">
+        <span class="status" data-status></span>
+        <h4 class="check-title"></h4>
+      </div>
+      <p class="check-summary"></p>
+      <details class="check-details">
+        <summary>Technical details</summary>
+        <code class="check-raw"></code>
+      </details>
+    </article>
+  </template>
+
+  <script src="/app.js" type="module"></script>
+</body>
+</html>
