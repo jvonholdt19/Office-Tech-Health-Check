@@ -51,7 +51,7 @@ test("neglected office: exact records, urgent renewal, package pricing and proje
   const spf = plan.items.find((i) => i.id === "spf");
   assert.equal(spf.records[0].value, "v=spf1 include:secureserver.net ~all");
   const dmarc = plan.items.find((i) => i.id === "dmarc");
-  assert.deepEqual(dmarc.records.map((r) => r.value), [
+  assert.deepEqual(dmarc.records.filter((r) => !r.zone).map((r) => r.value), [
     "v=DMARC1; p=none; rua=mailto:dmarc@nwimpm.com; fo=1",
     "v=DMARC1; p=quarantine; rua=mailto:dmarc@nwimpm.com; fo=1",
     "v=DMARC1; p=reject; rua=mailto:dmarc@nwimpm.com; fo=1",
@@ -131,12 +131,12 @@ test("DMARC staging respects an existing enforced policy", async () => {
   };
   const txtBase = { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], [`google._domainkey.${d}`]: ["v=DKIM1; p=MIIB"] };
   const partial = buildPlan(await runScan(d, fakeDeps({ ...base, txt: { ...txtBase, [`_dmarc.${d}`]: ["v=DMARC1; p=quarantine; pct=50; rua=mailto:x@acme.com"] } })), opts);
-  assert.deepEqual(partial.items.find((i) => i.id === "dmarc").records.map((r) => r.value.match(/p=(\w+)/)[1]), ["quarantine", "reject"]);
+  assert.deepEqual(partial.items.find((i) => i.id === "dmarc").records.filter((r) => !r.zone).map((r) => r.value.match(/p=(\w+)/)[1]), ["quarantine", "reject"]);
   // p=reject without a report address passes the scan, so the plan must NOT charge to "fix" it
   const noReports = buildPlan(await runScan(d, fakeDeps({ ...base, txt: { ...txtBase, [`_dmarc.${d}`]: ["v=DMARC1; p=reject"] } })), opts);
   assert.ok(!noReports.items.some((i) => i.id === "dmarc"));
   const monitor = buildPlan(await runScan(d, fakeDeps({ ...base, txt: { ...txtBase, [`_dmarc.${d}`]: ["v=DMARC1; p=none; rua=mailto:x@acme.com"] } })), opts);
-  assert.deepEqual(monitor.items.find((i) => i.id === "dmarc").records.map((r) => r.value.match(/p=(\w+)/)[1]), ["none", "quarantine", "reject"]);
+  assert.deepEqual(monitor.items.find((i) => i.id === "dmarc").records.filter((r) => !r.zone).map((r) => r.value.match(/p=(\w+)/)[1]), ["none", "quarantine", "reject"]);
 });
 
 function fakeRes() {
@@ -172,4 +172,58 @@ test("plan API is locked without a passcode and rejects wrong ones", async () =>
     if (saved === undefined) delete process.env.PLAN_PASSCODE;
     else process.env.PLAN_PASSCODE = saved;
   }
+});
+
+test("technician checklist shows what's there now and exactly what to change", async () => {
+  const plan = buildPlan(await neglectedOffice(), opts);
+  const item = (id) => plan.items.find((i) => i.id === id);
+
+  const dom = item("domain-security");
+  assert.ok(dom.found.some((f) => f === "Transfer lock: Off"));
+  assert.deepEqual(dom.settings.find((s) => /Transfer lock/.test(s.what)), { what: "Transfer lock (Domain/Registrar Lock)", now: "Off", to: "On" });
+
+  const spf = item("spf");
+  assert.match(spf.found[0], /No SPF record/);
+  assert.equal(spf.records[0].action, "Add");
+
+  const dkim = item("dkim");
+  assert.deepEqual(dkim.settings[0], { what: "DKIM signing in GoDaddy email", now: "Not set up", to: "On (2048-bit key where offered)" });
+
+  const dmarc = item("dmarc");
+  assert.deepEqual(dmarc.records.map((r) => r.action), ["Add", "Replace", "Replace", "Add"]);
+  assert.equal(dmarc.records[1].current, dmarc.records[0].value, "stage 2 replaces stage 1");
+  assert.equal(dmarc.records[3].zone, "nwimpm.com", "report authorization goes on the report domain");
+
+  assert.match(item("ssl").settings[0].now, /^Expired \(CERT_HAS_EXPIRED\)$/);
+  assert.match(item("https-redirect").settings[0].now, /Off \(HTTP 200\)/);
+  assert.match(item("https-redirect").settings[0].to, /https:\/\/oldoffice\.com\//);
+});
+
+test("duplicate SPF records: delete each one, then add the merged record; existing senders are named", async () => {
+  const d = "acme.com";
+  const report = await runScan(d, fakeDeps({
+    mx: { [d]: [{ exchange: "acme-com.mail.protection.outlook.com", priority: 0 }] },
+    txt: { [d]: ["v=spf1 include:spf.protection.outlook.com -all", "v=spf1 include:sendgrid.net ~all"] },
+  }));
+  const spf = buildPlan(report, opts).items.find((i) => i.id === "spf");
+  assert.deepEqual(spf.records.map((r) => r.action), ["Delete", "Delete", "Add"]);
+  assert.equal(spf.records[2].value, "v=spf1 include:spf.protection.outlook.com include:sendgrid.net ~all");
+  assert.ok(spf.found.some((f) => /SendGrid/.test(f) && /Microsoft 365/.test(f)));
+
+  const dkim = buildPlan(report, opts).items.find((i) => i.id === "dkim");
+  assert.deepEqual(dkim.records.map((r) => [r.type, r.name, r.generated]), [["CNAME", "selector1._domainkey", true], ["CNAME", "selector2._domainkey", true]]);
+});
+
+test("existing SPF is replaced, showing the current value next to the new one", async () => {
+  const d = "acme.com";
+  const report = await runScan(d, fakeDeps({
+    mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
+    txt: { [d]: ["v=spf1 include:mailgun.org +all"], "mailgun.org": ["v=spf1 ip4:1.2.3.4 -all"] },
+  }));
+  const spf = buildPlan(report, opts).items.find((i) => i.id === "spf");
+  assert.equal(spf.records.length, 1);
+  assert.equal(spf.records[0].action, "Replace");
+  assert.equal(spf.records[0].current, "v=spf1 include:mailgun.org +all");
+  assert.equal(spf.records[0].value, "v=spf1 include:_spf.google.com include:mailgun.org ~all");
+  assert.ok(spf.found.some((f) => /\+all/.test(f)));
 });

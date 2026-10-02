@@ -28,7 +28,7 @@ There are no dependencies.
 ```bash
 npm run dev                          # http://localhost:3000
 npm run scan -- acmeaccounting.com   # CLI report (add --json for raw output)
-npm test                             # 35 unit tests, no network needed
+npm test                             # 38 unit tests, no network needed
 ```
 
 ## Deploy

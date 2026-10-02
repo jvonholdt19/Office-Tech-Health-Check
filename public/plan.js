@@ -202,19 +202,34 @@ function renderTech(plan, report) {
   for (const it of plan.items) {
     const task = h("section", { class: "task" },
       h("h4", {}, `${it.step}. ${it.title} `, h("span", { class: "est" }, `· ~${it.minutes} min · fixes: ${it.fixes.join(", ")}`)),
-      checklist(it.steps),
     );
-    for (const r of it.records) {
+    if (it.found?.length) task.append(h("div", { class: "sub" }, "Found now"), h("ul", { class: "found" }, it.found.map((f) => h("li", {}, f))));
+    if (it.settings?.length) {
       task.append(
-        h("div", { class: "record" },
-          h("div", { class: "record-head" },
-            h("span", {}, "Type ", h("b", {}, r.type), "  Name/Host ", h("b", {}, r.name), "  TTL ", h("b", {}, r.ttl)),
-            r.note ? h("span", { class: "record-note" }, r.note) : null,
-          ),
-          h("div", { class: "record-value" }, h("code", {}, r.value), copyButton(r.value)),
+        h("div", { class: "sub" }, "Change"),
+        h("table", { class: "change-table" },
+          h("thead", {}, h("tr", {}, h("th", {}, "Setting"), h("th", {}, "Now"), h("th", {}, "Change to"))),
+          h("tbody", {}, it.settings.map((s) => h("tr", {}, h("td", {}, s.what), h("td", { class: "now" }, s.now), h("td", { class: "to" }, s.to)))),
         ),
       );
     }
+    if (it.records.length) task.append(h("div", { class: "sub" }, `DNS records${it.records.some((r) => r.zone) ? "" : ` (at ${plan.dnsHost.name})`}`));
+    for (const r of it.records) {
+      const value = r.generated
+        ? h("div", { class: "record-value generated" }, h("em", {}, r.value))
+        : h("div", { class: "record-value" }, h("code", {}, r.value), r.action === "Delete" ? null : copyButton(r.value));
+      task.append(
+        h("div", { class: "record", "data-action": r.action },
+          h("div", { class: "record-head" },
+            h("span", {}, h("span", { class: "action" }, r.action), "  Type ", h("b", {}, r.type), "  Name/Host ", h("b", {}, r.name), r.zone ? h("span", {}, "  on ", h("b", {}, r.zone)) : null, "  TTL ", h("b", {}, r.ttl)),
+            r.note ? h("span", { class: "record-note" }, r.note) : null,
+          ),
+          r.current ? h("div", { class: "record-value current" }, h("span", { class: "lbl" }, "Now"), h("code", {}, r.current)) : null,
+          r.current ? h("div", { class: "record-value" }, h("span", { class: "lbl" }, "New"), h("code", {}, r.value), copyButton(r.value)) : value,
+        ),
+      );
+    }
+    task.append(h("div", { class: "sub" }, "Steps"), checklist(it.steps));
     task.append(h("p", { class: "verify" }, h("b", {}, "Verify: "), it.verify));
     if (it.followUp) task.append(h("p", { class: "verify" }, h("b", {}, "Follow-up: "), it.followUp));
     root.append(task);

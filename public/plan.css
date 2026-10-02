@@ -73,6 +73,22 @@ table.price-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
 .record-value { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; }
 .record-value code { flex: 1; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; word-break: break-all; white-space: pre-wrap; }
 .copy-btn { flex: none; font-size: 13px; padding: 4px 10px; }
+.task .sub { margin: 14px 0 4px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.found { margin: 0; padding-left: 20px; }
+.found li { padding: 2px 0; word-break: break-word; }
+table.change-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.change-table th, .change-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.change-table th { font-size: 12px; color: var(--muted); }
+.change-table td.now { color: var(--fail); }
+.change-table td.to { color: var(--pass); font-weight: 600; }
+.record .action { display: inline-block; font-weight: 800; font-size: 12px; text-transform: uppercase; padding: 1px 8px; border-radius: 999px; margin-right: 6px; background: var(--pass-bg); color: var(--pass); }
+.record[data-action="Replace"] .action { background: var(--warn-bg); color: var(--warn); }
+.record[data-action="Delete"] .action { background: var(--fail-bg); color: var(--fail); }
+.record[data-action="Delete"] .record-value code { text-decoration: line-through; color: var(--muted); }
+.record-value .lbl { flex: none; width: 34px; font-size: 12px; font-weight: 700; color: var(--muted); padding-top: 2px; }
+.record-value.current code { color: var(--muted); }
+.record-value.current { border-bottom: 1px dashed var(--border); }
+.record-value.generated em { color: var(--muted); }
 .verify { margin-top: 8px; font-size: 15px; }
 .verify b { color: var(--pass); }
 
