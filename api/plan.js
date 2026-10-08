@@ -1,76 +1,81 @@
-import { timingSafeEqual, createHash } from "node:crypto";
 import { normalizeDomain } from "../lib/domain.js";
 import { runScan } from "../lib/scan.js";
 import { buildPlan, safetyCheckPlan } from "../lib/plan.js";
 import { defaultDeps } from "../lib/net.js";
+import { parseZone, zoneResolver, dkimSelectors, inventory, compareWithLive } from "../lib/zone.js";
+import { simulatePlan, liveBaseRecords } from "../lib/simulate.js";
+import { authorize, send, readJson, cachedDeps, passcodeMatches } from "../lib/private-api.js";
 
-// Private endpoint: GET /api/plan?domain=acme.com with header "x-plan-passcode".
-// The passcode comes from the PLAN_PASSCODE environment variable in Vercel.
-// If it isn't set, the endpoint stays locked.
+export { passcodeMatches };
 
-const WINDOW_MS = 60_000;
-const MAX_PER_WINDOW = 10;
-const MAX_BAD_PASSCODES = 5;
-const hits = new Map();
-const failures = new Map();
+// Private endpoint (header "x-plan-passcode", from the PLAN_PASSCODE environment variable;
+// locked when it isn't set):
+//   GET  /api/plan?domain=acme.com                → plan from public DNS
+//   POST /api/plan { domain, zone: { text, filename } } → plan from the client's exported zone
+// Both include a dry run of the day-one changes. Uploaded records are never stored.
 
-function tooMany(map, ip, limit) {
-  const now = Date.now();
-  const recent = (map.get(ip) || []).filter((t) => now - t < WINDOW_MS);
-  map.set(ip, recent);
-  if (map.size > 5000) map.clear();
-  return recent.length >= limit;
-}
-const record = (map, ip) => map.set(ip, [...(map.get(ip) || []), Date.now()]);
+export async function buildFullPlan(domain, zoneUpload, baseDeps = defaultDeps) {
+  const deps = cachedDeps(baseDeps);
+  let zone = null;
+  let report;
+  let resolver = deps.resolver;
+  let base;
+  let owned = null;
 
-/** Constant-time comparison so the passcode can't be guessed character by character. */
-export function passcodeMatches(given, expected) {
-  if (!given || !expected) return false;
-  const a = createHash("sha256").update(String(given)).digest();
-  const b = createHash("sha256").update(String(expected)).digest();
-  return timingSafeEqual(a, b);
-}
+  if (zoneUpload?.text) {
+    let parsed;
+    try {
+      parsed = parseZone(zoneUpload.text, domain);
+    } catch (err) {
+      throw Object.assign(new Error(err.message), { userFacing: true });
+    }
+    resolver = zoneResolver(parsed.records, domain, deps.resolver, { authoritative: true });
+    report = await runScan(domain, { ...deps, resolver, dkimSelectors: dkimSelectors(parsed.records, domain), zoneAuthoritative: true });
+    base = parsed.records;
+    zone = {
+      filename: String(zoneUpload.filename || "").slice(0, 120) || null,
+      format: parsed.format,
+      warnings: parsed.warnings,
+      inventory: inventory(parsed.records, domain),
+      differences: await compareWithLive(parsed.records, domain, deps.resolver),
+    };
+  } else {
+    report = await runScan(domain, deps);
+    ({ records: base, owned } = await liveBaseRecords(domain, deps.resolver, report));
+  }
 
-function send(res, status, body, extra = {}) {
-  res.statusCode = status;
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.setHeader("Cache-Control", "no-store");
-  res.setHeader("X-Robots-Tag", "noindex");
-  for (const [k, v] of Object.entries(extra)) res.setHeader(k, v);
-  res.end(JSON.stringify(body));
+  const plan = await safetyCheckPlan(buildPlan(report), { resolver });
+  const simulation = await simulatePlan({ domain, base, owned, authoritative: Boolean(zone), plan, before: report, deps });
+  return { report, plan, simulation, zone };
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "GET") return send(res, 405, { error: "Use GET" }, { Allow: "GET" });
+  if (req.method !== "GET" && req.method !== "POST") return send(res, 405, { error: "Use GET or POST" }, { Allow: "GET, POST" });
+  if (!authorize(req, res)) return;
 
-  const expected = process.env.PLAN_PASSCODE;
-  if (!expected || expected.length < 8) {
-    return send(res, 503, { error: "Fix plans are locked. Set a PLAN_PASSCODE (8+ characters) in Vercel → Project → Settings → Environment Variables, then redeploy." });
+  let domainInput;
+  let zoneUpload = null;
+  if (req.method === "POST") {
+    let body;
+    try {
+      body = await readJson(req);
+    } catch (err) {
+      return send(res, err.status || 400, { error: err.status ? err.message : "Couldn't read the upload." });
+    }
+    domainInput = body.domain;
+    zoneUpload = body.zone && typeof body.zone.text === "string" ? body.zone : null;
+  } else {
+    domainInput = new URL(req.url, "http://localhost").searchParams.get("domain");
   }
-
-  const ip = String(req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown").split(",")[0].trim();
-  if (tooMany(failures, ip, MAX_BAD_PASSCODES)) {
-    return send(res, 429, { error: "Too many wrong passcodes. Wait a minute and try again." }, { "Retry-After": "60" });
-  }
-  if (!passcodeMatches(req.headers["x-plan-passcode"], expected)) {
-    record(failures, ip);
-    return send(res, 401, { error: "Wrong passcode." });
-  }
-  if (tooMany(hits, ip, MAX_PER_WINDOW)) {
-    return send(res, 429, { error: "Too many plans in a short time. Wait a minute." }, { "Retry-After": "60" });
-  }
-  record(hits, ip);
-
-  const url = new URL(req.url, "http://localhost");
-  const parsed = normalizeDomain(url.searchParams.get("domain") || "");
+  const parsed = normalizeDomain(domainInput || "");
   if (parsed.error) return send(res, 400, { error: parsed.error });
 
   try {
-    const report = await runScan(parsed.domain);
-    const plan = await safetyCheckPlan(buildPlan(report), defaultDeps);
-    return send(res, 200, { report, plan });
+    return send(res, 200, await buildFullPlan(parsed.domain, zoneUpload));
   } catch (err) {
-    console.error("plan failed", parsed.domain, err);
+    // Zone-file problems are explained to the user; anything else is logged without the upload's contents.
+    if (err?.userFacing) return send(res, 400, { error: err.message });
+    console.error("plan failed", parsed.domain, err?.code || err?.message);
     return send(res, 500, { error: "Couldn't build the plan. Please try again." });
   }
 }

@@ -28,8 +28,14 @@ There are no dependencies.
 ```bash
 npm run dev                          # http://localhost:3000
 npm run scan -- acmeaccounting.com   # CLI report (add --json for raw output)
-npm test                             # 47 unit tests, no network needed
+npm test                             # 64 unit tests, no network needed
 ```
+
+## Client DNS records and dry run (private, on /plan)
+
+- **Upload the client's records:** export the zone from their DNS host (zone file, CSV or Route 53 JSON) and upload or paste it on `/plan`. The checks run against the file (custom-named DKIM keys become visible) and it's compared with live DNS to catch an out-of-date export. Uploads are used for that one request and never stored.
+- **Dry run:** every plan applies its day-one changes to a copy of the records and re-runs every check. It is **blocked** if anything gets worse, SPF goes over 10 lookups or includes a dead service, a sender would be dropped, DMARC would tighten on day one or lose the client's report address, or any non-email record would change. It says **check before applying** when something (e.g. live DNS) couldn't be confirmed.
+- **Export and verify:** download only the day-one changes (zone format or CSV, never a full zone), then use **Verify live** to tick off each change once it's published.
 
 ## Deploy
 

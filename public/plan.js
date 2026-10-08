@@ -199,8 +199,8 @@ function renderTech(plan, report) {
 
   if (plan.safety?.problems?.length) {
     root.append(h("div", { class: "safety bad" }, h("b", {}, "Safety check found problems. Read before changing anything:"), h("ul", {}, plan.safety.problems.map((p) => h("li", {}, p)))));
-  } else if (plan.safety?.checked) {
-    root.append(h("div", { class: "safety ok" }, "✓ Safety check passed: every proposed SPF record was resolved against live DNS and stays within the 10-lookup limit."));
+  } else if (plan.safety?.checked && plan.items.some((it) => it.records?.some((r) => /^v=spf1/i.test(r.value || "")))) {
+    root.append(h("div", { class: "safety ok" }, "✓ Safety check passed: every proposed SPF record was resolved against live DNS, every include is valid, and it stays within the 10-lookup limit."));
   }
   if (plan.accessNeeded.length) root.append(h("h3", {}, "Before you start: access"), checklist(plan.accessNeeded));
   if (plan.items.some((it) => it.records?.length)) {
@@ -271,6 +271,198 @@ function renderTech(plan, report) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Client DNS records (zone upload)                                     */
+/* ------------------------------------------------------------------ */
+
+let zoneUpload = null; // { text, filename } while a client's records are loaded; kept in memory only
+
+function setZone(z) {
+  zoneUpload = z;
+  $("zone-chip").hidden = !z;
+  $("zone-clear").hidden = !z;
+  $("zone-chip").textContent = z ? `Using records from ${z.filename || "pasted text"} (${Math.max(1, Math.round(z.text.length / 1024))} KB)` : "";
+  $("plan-btn").textContent = z ? "Build plan from these records" : "Build fix plan";
+}
+
+$("zone-file").addEventListener("change", async (e) => {
+  const f = e.target.files[0];
+  e.target.value = "";
+  if (!f) return;
+  if (f.size > 2_000_000) return showError("plan-error", "That file is larger than 2 MB. Export only the one domain's zone.");
+  showError("plan-error", "");
+  setZone({ text: await f.text(), filename: f.name });
+  $("zone-paste").hidden = true;
+});
+$("zone-paste-btn").addEventListener("click", () => {
+  $("zone-paste").hidden = !$("zone-paste").hidden;
+  if (!$("zone-paste").hidden) $("zone-text").focus();
+});
+$("zone-paste-use").addEventListener("click", () => {
+  const t = $("zone-text").value;
+  if (!t.trim()) return;
+  setZone({ text: t, filename: "" });
+  $("zone-text").value = "";
+  $("zone-paste").hidden = true;
+});
+$("zone-clear").addEventListener("click", () => setZone(null));
+
+function recordTable(rows) {
+  return h("table", { class: "change-table zone-table" },
+    h("thead", {}, h("tr", {}, h("th", {}, "What"), h("th", {}, "Name"), h("th", {}, "Type"), h("th", {}, "Value"))),
+    h("tbody", {}, rows.map((r) => h("tr", {}, h("td", {}, r.role), h("td", {}, h("code", {}, r.name)), h("td", {}, r.type), h("td", {}, h("code", { class: "wrap" }, r.value))))),
+  );
+}
+
+function renderZone(zone, domain) {
+  const inv = zone.inventory;
+  const box = h("section", { class: "zone-panel" },
+    h("h3", {}, "Client DNS records"),
+    h("p", { class: "muted" }, `${zone.filename || "Pasted records"} · ${inv.total} records · ${zone.format === "bind" ? "zone file" : zone.format === "csv" ? "CSV" : "Route 53 JSON"}. This plan and dry run were built from these records, not just public DNS.`),
+  );
+  if (zone.warnings?.length) box.append(h("ul", { class: "found" }, zone.warnings.map((w) => h("li", {}, w))));
+  const mismatches = (zone.differences || []).filter((d) => d.match === false);
+  if (mismatches.length) {
+    box.append(h("div", { class: "safety bad" },
+      h("b", {}, "The file doesn't match live DNS. Re-export before making changes, or check the domain's DNS is really hosted where this file came from:"),
+      h("ul", {}, mismatches.map((d) => h("li", {}, `${d.label}: file has ${d.file.length ? d.file.join(" | ") : "nothing"}; live has ${d.live?.length ? d.live.join(" | ") : "nothing"}`))),
+    ));
+  } else if ((zone.differences || []).length && zone.differences.every((d) => d.match === null)) {
+    box.append(h("div", { class: "safety bad" }, "Live DNS couldn't be reached, so the file wasn't compared with what's published. Build the plan again in a minute."));
+  } else if ((zone.differences || []).some((d) => d.match === true)) {
+    box.append(h("div", { class: "safety ok" }, "✓ The email records in the file match live public DNS."));
+  }
+  if (inv.email.length) box.append(h("div", { class: "sub" }, "Email"), recordTable(inv.email));
+  if (inv.website.length) box.append(h("div", { class: "sub" }, "Website"), recordTable(inv.website));
+  if (inv.verification.length) box.append(h("div", { class: "sub" }, "Other TXT at the main domain"), recordTable(inv.verification));
+  box.append(h("p", { class: "muted" }, `All record types in the file: ${Object.entries(inv.counts).map(([t, n]) => `${t} ${n}`).join(", ")}`));
+  return box;
+}
+
+/* ------------------------------------------------------------------ */
+/* Dry run                                                              */
+/* ------------------------------------------------------------------ */
+
+const STATUS_TEXT = { pass: "Good", warn: "Needs attention", fail: "At risk", unknown: "Couldn't verify", info: "FYI" };
+const CHANGE_TEXT = { applied: "Day one", assumed: "Day one (value from platform)", later: "Later stage", blocked: "Blocked", conflict: "Conflict", "not-simulated": "Not simulated" };
+
+function download(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = h("a", { href: url, download: name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function renderSimulation(sim, domain, zone) {
+  const root = $("sim-view");
+  root.replaceChildren();
+  $("sim-badge").textContent = sim ? (sim.verdict === "safe" ? "✓" : "!") : "";
+  $("sim-badge").dataset.verdict = sim?.verdict || "";
+  if (!sim) return;
+  const safe = sim.verdict === "safe";
+  const check = sim.verdict === "check";
+  root.append(
+    h("div", { class: "doc-head" },
+      h("div", {}, h("div", { class: "doc-brand" }, "Dry run · day-one changes"), h("h2", {}, domain)),
+      h("div", { class: "doc-meta" }, h("div", {}, sim.mode === "zone" ? `From ${zone?.filename || "uploaded records"}` : "From public DNS (upload the client's records for a full check)")),
+    ),
+    h("div", { class: `verdict ${safe ? "ok" : check ? "check" : "bad"}` },
+      h("div", { class: "verdict-title" }, safe ? "✓ Safe to apply" : check ? "! Check before applying" : "✗ Blocked: don't make these changes yet"),
+      h("div", {}, safe
+        ? "Every day-one change was applied to a copy of the records and every check was re-run. Nothing gets worse, SPF stays within limits with every include valid, and no website, mail-server or verification records are touched."
+        : check
+          ? "Nothing failed, but not everything could be confirmed. Resolve the points below before making changes."
+          : "The dry run found problems. Fix these first, then build the plan again."),
+      sim.blockers.length ? h("ul", {}, sim.blockers.map((b) => h("li", {}, b))) : null,
+      check ? h("ul", {}, sim.warnings.map((w) => h("li", {}, w))) : null,
+    ),
+    h("div", { class: "grade-move" },
+      h("div", {}, h("div", { class: "k" }, "Now"), h("div", { class: "v" }, `${sim.before.grade ?? "–"}`), h("div", { class: "s" }, sim.before.score ?? "–")),
+      h("div", { class: "arrow" }, "→"),
+      h("div", {}, h("div", { class: "k" }, "After day one"), h("div", { class: "v" }, `${sim.after.grade ?? "–"}`), h("div", { class: "s" }, sim.after.score ?? "–")),
+    ),
+    h("p", { class: "muted" }, "Day one is SPF, DKIM and DMARC in monitor-only mode. The grade reaches its target after the later DMARC stages, once reports confirm every sender passes."),
+  );
+  if (sim.warnings.length && !check) root.append(h("div", { class: "safety bad" }, h("ul", {}, sim.warnings.map((w) => h("li", {}, w)))));
+  if (sim.assumptions.length) root.append(h("div", { class: "sub" }, "Assumptions"), h("ul", { class: "found" }, sim.assumptions.map((a) => h("li", {}, a))));
+
+  root.append(
+    h("h3", {}, "Checks before and after"),
+    h("table", { class: "change-table" },
+      h("thead", {}, h("tr", {}, h("th", {}, "Check"), h("th", {}, "Now"), h("th", {}, "After day one"))),
+      h("tbody", {}, sim.comparisons.map((c) => h("tr", { "data-delta": String(c.delta) },
+        h("td", {}, c.title),
+        h("td", {}, STATUS_TEXT[c.before] || c.before),
+        h("td", { class: c.delta > 0 ? "to" : c.delta < 0 ? "now" : "" }, `${STATUS_TEXT[c.after] || c.after}${c.delta > 0 ? " ▲" : c.delta < 0 ? " ▼" : ""}`),
+      ))),
+    ),
+  );
+
+  const dayOne = sim.changes.filter((c) => c.status === "applied" || c.status === "assumed");
+  const liveCells = new Map();
+  root.append(
+    h("h3", {}, "DNS changes"),
+    h("table", { class: "change-table changes" },
+      h("thead", {}, h("tr", {}, h("th", {}, "When"), h("th", {}, "Action"), h("th", {}, "Record"), h("th", {}, "Value"), h("th", {}, "Live"))),
+      h("tbody", {}, sim.changes.map((c) => {
+        const live = h("td", { class: "live" }, dayOne.includes(c) ? "–" : "");
+        if (dayOne.includes(c)) liveCells.set(c, live);
+        return h("tr", { "data-status": c.status },
+          h("td", {}, CHANGE_TEXT[c.status] || c.status),
+          h("td", {}, c.action),
+          h("td", {}, h("code", {}, `${c.type} ${c.name}`)),
+          h("td", {},
+            c.from && c.action !== "Delete" ? h("div", { class: "from" }, h("code", { class: "wrap" }, c.from)) : null,
+            c.action === "Delete" ? h("div", { class: "from" }, h("code", { class: "wrap" }, c.from)) : h("div", {}, h("code", { class: "wrap" }, c.status === "assumed" ? "(generated by the email platform)" : c.to)),
+            c.note && c.status !== "applied" ? h("div", { class: "muted small" }, c.note) : null,
+          ),
+          live,
+        );
+      })),
+    ),
+  );
+
+  const verifyMsg = h("p", { class: "muted", id: "verify-msg" });
+  const verifyBtn = h("button", { type: "button", class: "btn-ghost", disabled: dayOne.length ? null : true }, "Verify live");
+  verifyBtn.addEventListener("click", async () => {
+    verifyBtn.disabled = true;
+    verifyMsg.textContent = "Checking public DNS…";
+    try {
+      const res = await fetch("/api/verify", {
+        method: "POST",
+        headers: { "x-plan-passcode": memoryPass, "Content-Type": "application/json" },
+        body: JSON.stringify({ domain, changes: dayOne.map(({ action, type, name, from, to, status }) => ({ action, type, name, from, to, status })) }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "Couldn't verify.");
+      body.results.forEach((r, i) => {
+        const cell = liveCells.get(dayOne[i]);
+        if (!cell) return;
+        cell.replaceChildren(h("span", { class: `live-${r.live}` }, r.live === "done" ? "✓ Live" : r.live === "pending" ? "Not yet" : r.live === "skipped" ? "Check by hand" : "Error"), r.note ? h("div", { class: "muted small" }, r.note) : null);
+      });
+      verifyMsg.textContent = body.allDone
+        ? "✓ Every day-one change is live. Re-run the health check and send the test emails from the checklist."
+        : "Some changes aren't live yet. DNS changes can take a few minutes (up to the record's TTL) to appear. Check again shortly.";
+    } catch (err) {
+      verifyMsg.textContent = err.message;
+    } finally {
+      verifyBtn.disabled = false;
+    }
+  });
+
+  root.append(
+    h("div", { class: "sim-actions no-print" },
+      h("button", { type: "button", class: "btn-ghost", disabled: safe && dayOne.length ? null : true, onclick: () => download(`${domain}-day-one-changes.txt`, sim.export.zone, "text/plain") }, "Download changes (zone format)"),
+      h("button", { type: "button", class: "btn-ghost", disabled: safe && dayOne.length ? null : true, onclick: () => download(`${domain}-day-one-changes.csv`, sim.export.csv, "text/csv") }, "Download changes (CSV)"),
+      verifyBtn,
+    ),
+    verifyMsg,
+    h("p", { class: "muted small" }, "The downloads contain only the day-one changes, never a full zone. Don't use your DNS host's \"replace zone\" import with them."),
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Wiring                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -280,7 +472,13 @@ async function buildPlan(domain) {
   $("plan-loading").hidden = false;
   $("plan-btn").disabled = true;
   try {
-    const res = await fetch(`/api/plan?domain=${encodeURIComponent(domain)}`, { headers: { "x-plan-passcode": memoryPass } });
+    const res = zoneUpload
+      ? await fetch("/api/plan", {
+          method: "POST",
+          headers: { "x-plan-passcode": memoryPass, "Content-Type": "application/json" },
+          body: JSON.stringify({ domain, zone: zoneUpload }),
+        })
+      : await fetch(`/api/plan?domain=${encodeURIComponent(domain)}`, { headers: { "x-plan-passcode": memoryPass } });
     const body = await res.json().catch(() => ({}));
     if (res.status === 401) {
       setPass("");
@@ -291,6 +489,8 @@ async function buildPlan(domain) {
     if (!res.ok) throw new Error(body.error || "Something went wrong.");
     renderClient(body.plan);
     renderTech(body.plan, body.report);
+    if (body.zone) $("tech-view").prepend(renderZone(body.zone, body.plan.domain));
+    renderSimulation(body.simulation, body.plan.domain, body.zone);
     $("domain").value = body.plan.domain;
     const url = new URL(location.href);
     url.searchParams.set("d", body.plan.domain);
@@ -334,6 +534,7 @@ for (const tab of document.querySelectorAll(".tab")) {
     }
     $("client-view").hidden = tab.dataset.tab !== "client";
     $("tech-view").hidden = tab.dataset.tab !== "tech";
+    $("sim-view").hidden = tab.dataset.tab !== "sim";
   });
 }
 

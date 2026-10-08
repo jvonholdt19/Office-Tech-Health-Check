@@ -1,0 +1,7 @@
+Type,Name,Value,Priority,TTL
+A,@,192.0.2.30,,3600
+CNAME,www,shop.example.com,,3600
+MX,@,mail.csvco.com,10,3600
+TXT,@,"""v=spf1 mx include:spf.protection.outlook.com ~all""",,3600
+TXT,_dmarc,v=DMARC1; p=quarantine; pct=50,,3600
+CNAME,selector1._domainkey,selector1-csvco-com._domainkey.csvco.onmicrosoft.com,,3600

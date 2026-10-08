@@ -1,0 +1,47 @@
+;;
+;; Domain:     acme.com.
+;; Exported:   2026-10-08 15:04:11
+;;
+;; This file is intended for use for informational and archival
+;; purposes ONLY and MUST be edited before use on a production
+;; DNS server.  In particular, you must:
+;;   -- update the SOA record with the correct authoritative name server
+;;   -- update the SOA record with the contact e-mail address information
+;;   -- update the NS record(s) with the authoritative name servers for this domain.
+;;
+;; For further information, please consult the BIND documentation
+;; located on the following website:
+;;
+;; http://www.isc.org/
+;;
+;; And RFC 1035:
+;;
+;; http://www.ietf.org/rfc/rfc1035.txt
+;;
+;; Please note that we do NOT offer technical support for any use
+;; of this zone data, the BIND package, or any other software.
+;;
+;; Cloudflare Proxy Type: proxied = "cf-proxied:true", not proxied = "cf-proxied:false"
+
+;; SOA Record
+acme.com	3600	IN	SOA	lars.ns.cloudflare.com. dns.cloudflare.com. 2051234567 10000 2400 604800 3600
+
+;; NS Records
+acme.com.	86400	IN	NS	lars.ns.cloudflare.com.
+acme.com.	86400	IN	NS	jo.ns.cloudflare.com.
+
+;; A Records
+acme.com.	1	IN	A	192.0.2.10 ; cf_tags=cf-proxied:true
+
+;; CNAME Records
+www.acme.com.	1	IN	CNAME	acme.com. ; cf_tags=cf-proxied:true
+mail2025._domainkey.acme.com.	1	IN	CNAME	mail2025.dkim.example-esp.net. ; cf_tags=cf-proxied:false
+
+;; MX Records
+acme.com.	1	IN	MX	1 smtp.google.com.
+
+;; TXT Records
+acme.com.	1	IN	TXT	"google-site-verification=abc123"
+acme.com.	1	IN	TXT	"v=spf1 include:sendgrid.net ~all"
+_dmarc.acme.com.	1	IN	TXT	"v=DMARC1; p=none; rua=mailto:reports@vendor.example"
+custom2024._domainkey.acme.com.	1	IN	TXT	"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAx" "IDAQAB"

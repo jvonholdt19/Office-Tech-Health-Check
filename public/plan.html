@@ -40,6 +40,20 @@
         <input id="domain" type="text" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="clientbusiness.com" required>
         <button type="submit" id="plan-btn">Build fix plan</button>
       </form>
+      <div class="zone-upload no-print">
+        <div class="zone-row">
+          <label class="btn-ghost file-btn" for="zone-file">Upload client DNS records</label>
+          <input id="zone-file" type="file" accept=".txt,.zone,.db,.bind,.csv,.json,text/plain,text/csv,application/json" hidden>
+          <button type="button" class="link-btn" id="zone-paste-btn">or paste them</button>
+          <span class="zone-chip" id="zone-chip" hidden></span>
+          <button type="button" class="link-btn" id="zone-clear" hidden>Remove</button>
+        </div>
+        <p class="zone-help">Optional, for engaged clients. Export the zone from their DNS host (Cloudflare: DNS → Records → Import and Export → Export; GoDaddy: DNS → ⋯ → Export Zone File). Zone-file, CSV and Route 53 JSON are supported. The file is only used to build this plan and is never stored.</p>
+        <div id="zone-paste" hidden>
+          <textarea id="zone-text" rows="8" spellcheck="false" placeholder="Paste the exported zone file here"></textarea>
+          <button type="button" class="btn-ghost" id="zone-paste-use">Use these records</button>
+        </div>
+      </div>
       <p class="form-error" id="plan-error" role="alert" hidden></p>
       <p class="loading-line no-print" id="plan-loading" hidden><span class="spinner small" aria-hidden="true"></span> Scanning and building the plan…</p>
 
@@ -47,12 +61,14 @@
         <div class="tabs no-print" role="tablist">
           <button type="button" role="tab" class="tab active" data-tab="client" aria-selected="true">Client plan</button>
           <button type="button" role="tab" class="tab" data-tab="tech" aria-selected="false">Technician checklist</button>
+          <button type="button" role="tab" class="tab" data-tab="sim" aria-selected="false">Dry run <span class="tab-badge" id="sim-badge"></span></button>
           <span class="tab-actions">
             <button type="button" class="btn-ghost" id="print-btn">Save as PDF</button>
           </span>
         </div>
         <article id="client-view" class="doc"></article>
         <article id="tech-view" class="doc" hidden></article>
+        <article id="sim-view" class="doc" hidden></article>
       </div>
     </section>
   </main>

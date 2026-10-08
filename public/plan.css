@@ -115,3 +115,39 @@ table.change-table { width: 100%; border-collapse: collapse; font-size: 14px; }
   .copy-btn { display: none; }
   body { background: #fff; }
 }
+
+/* Zone upload */
+.zone-upload { margin: 10px 0 0; }
+.zone-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.file-btn { cursor: pointer; display: inline-block; }
+.zone-chip { background: var(--pass-bg); color: var(--pass); font-weight: 600; font-size: 14px; padding: 4px 10px; border-radius: 999px; }
+.zone-help { font-size: 13px; color: var(--muted); margin: 6px 0 0; max-width: 760px; }
+#zone-paste textarea { width: 100%; font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; margin: 8px 0; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); box-sizing: border-box; }
+.zone-panel { border: 1px solid var(--border); border-radius: 12px; padding: 4px 18px 12px; margin: 0 0 18px; }
+.zone-panel h3 { margin-top: 12px; }
+code.wrap { word-break: break-all; white-space: pre-wrap; font-size: 13px; }
+.small { font-size: 13px; }
+
+/* Dry run */
+.tab-badge { font-size: 12px; font-weight: 800; margin-left: 4px; }
+.tab-badge[data-verdict="safe"] { color: var(--pass); }
+.tab-badge[data-verdict="blocked"] { color: var(--fail); }
+.verdict { border-radius: 12px; padding: 14px 16px; margin: 16px 0; }
+.verdict.ok { background: var(--pass-bg); color: var(--pass); }
+.verdict.bad { background: var(--fail-bg); color: var(--fail); }
+.verdict.check { background: var(--warn-bg); color: var(--warn); }
+.tab-badge[data-verdict="check"] { color: var(--warn); }
+.verdict-title { font-size: 20px; font-weight: 800; margin-bottom: 4px; }
+.verdict ul { margin: 8px 0 0; }
+.grade-move { display: flex; gap: 18px; align-items: center; margin: 8px 0; }
+.grade-move .k { font-size: 12px; color: var(--muted); text-transform: uppercase; font-weight: 700; }
+.grade-move .v { font-size: 34px; font-weight: 800; line-height: 1.1; }
+.grade-move .s { color: var(--muted); }
+.grade-move .arrow { font-size: 26px; color: var(--muted); }
+.changes tr[data-status="later"] td, .changes tr[data-status="not-simulated"] td { color: var(--muted); }
+.changes tr[data-status="blocked"] td, .changes tr[data-status="conflict"] td { color: var(--fail); }
+.changes .from code { color: var(--muted); text-decoration: line-through; }
+.sim-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.live-done { color: var(--pass); font-weight: 700; }
+.live-pending { color: var(--warn); font-weight: 700; }
+.live-error { color: var(--fail); font-weight: 700; }
