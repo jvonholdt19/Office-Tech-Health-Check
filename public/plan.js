@@ -197,7 +197,19 @@ function renderTech(plan, report) {
     h("p", { class: "muted" }, `Add DNS records at: ${plan.dnsHost.where}`),
   );
 
+  if (plan.safety?.problems?.length) {
+    root.append(h("div", { class: "safety bad" }, h("b", {}, "Safety check found problems. Read before changing anything:"), h("ul", {}, plan.safety.problems.map((p) => h("li", {}, p)))));
+  } else if (plan.safety?.checked) {
+    root.append(h("div", { class: "safety ok" }, "✓ Safety check passed: every proposed SPF record was resolved against live DNS and stays within the 10-lookup limit."));
+  }
   if (plan.accessNeeded.length) root.append(h("h3", {}, "Before you start: access"), checklist(plan.accessNeeded));
+  if (plan.items.some((it) => it.records?.length)) {
+    root.append(h("h3", {}, "Before you change any DNS"), checklist([
+      `Take a screenshot or export of the whole DNS zone for ${plan.domain} at ${plan.dnsHost.name}. That is your full undo.`,
+      "Make one change at a time and test before the next. Never change SPF and DMARC policy on the same day.",
+      "Do the work early in a business day, so the client can report problems while you can still fix them.",
+    ]));
+  }
 
   for (const it of plan.items) {
     const task = h("section", { class: "task" },
@@ -217,20 +229,22 @@ function renderTech(plan, report) {
     for (const r of it.records) {
       const value = r.generated
         ? h("div", { class: "record-value generated" }, h("em", {}, r.value))
-        : h("div", { class: "record-value" }, h("code", {}, r.value), r.action === "Delete" ? null : copyButton(r.value));
+        : h("div", { class: "record-value" }, h("code", {}, r.value), r.action === "Delete" || r.blocked ? null : copyButton(r.value));
       task.append(
-        h("div", { class: "record", "data-action": r.action },
+        h("div", { class: "record", "data-action": r.action, "data-blocked": r.blocked ? "true" : null },
           h("div", { class: "record-head" },
             h("span", {}, h("span", { class: "action" }, r.action), "  Type ", h("b", {}, r.type), "  Name/Host ", h("b", {}, r.name), r.zone ? h("span", {}, "  on ", h("b", {}, r.zone)) : null, "  TTL ", h("b", {}, r.ttl)),
             r.note ? h("span", { class: "record-note" }, r.note) : null,
           ),
           r.current ? h("div", { class: "record-value current" }, h("span", { class: "lbl" }, "Now"), h("code", {}, r.current)) : null,
-          r.current ? h("div", { class: "record-value" }, h("span", { class: "lbl" }, "New"), h("code", {}, r.value), copyButton(r.value)) : value,
+          r.current ? h("div", { class: "record-value" }, h("span", { class: "lbl" }, "New"), h("code", {}, r.value), r.blocked ? null : copyButton(r.value)) : value,
+          typeof r.lookups === "number" ? h("div", { class: "record-check" }, r.blocked ? `✗ Checked live: ${r.lookups} DNS lookups (limit 10)` : `✓ Checked live: ${r.lookups} of 10 DNS lookups`) : null,
         ),
       );
     }
     task.append(h("div", { class: "sub" }, "Steps"), checklist(it.steps));
     task.append(h("p", { class: "verify" }, h("b", {}, "Verify: "), it.verify));
+    if (it.rollback) task.append(h("p", { class: "rollback" }, h("b", {}, "If something goes wrong: "), it.rollback));
     if (it.followUp) task.append(h("p", { class: "verify" }, h("b", {}, "Follow-up: "), it.followUp));
     root.append(task);
   }

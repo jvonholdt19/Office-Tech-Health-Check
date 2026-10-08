@@ -89,6 +89,16 @@ table.change-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .record-value.current code { color: var(--muted); }
 .record-value.current { border-bottom: 1px dashed var(--border); }
 .record-value.generated em { color: var(--muted); }
+.record[data-blocked="true"] { border-color: var(--fail); }
+.record[data-blocked="true"] .record-note { color: var(--fail); }
+.record-check { padding: 0 12px 10px; font-size: 13px; color: var(--pass); font-weight: 600; }
+.record[data-blocked="true"] .record-check { color: var(--fail); }
+.rollback { margin-top: 4px; font-size: 15px; }
+.rollback b { color: var(--warn); }
+.safety { border-radius: 10px; padding: 10px 14px; margin: 12px 0; font-size: 15px; }
+.safety.ok { background: var(--pass-bg); color: var(--pass); font-weight: 600; }
+.safety.bad { background: var(--fail-bg); color: var(--fail); }
+.safety ul { margin: 6px 0 0; }
 .verify { margin-top: 8px; font-size: 15px; }
 .verify b { color: var(--pass); }
 

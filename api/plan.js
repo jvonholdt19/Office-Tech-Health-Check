@@ -1,7 +1,8 @@
 import { timingSafeEqual, createHash } from "node:crypto";
 import { normalizeDomain } from "../lib/domain.js";
 import { runScan } from "../lib/scan.js";
-import { buildPlan } from "../lib/plan.js";
+import { buildPlan, safetyCheckPlan } from "../lib/plan.js";
+import { defaultDeps } from "../lib/net.js";
 
 // Private endpoint: GET /api/plan?domain=acme.com with header "x-plan-passcode".
 // The passcode comes from the PLAN_PASSCODE environment variable in Vercel.
@@ -66,7 +67,7 @@ export default async function handler(req, res) {
 
   try {
     const report = await runScan(parsed.domain);
-    const plan = buildPlan(report);
+    const plan = await safetyCheckPlan(buildPlan(report), defaultDeps);
     return send(res, 200, { report, plan });
   } catch (err) {
     console.error("plan failed", parsed.domain, err);

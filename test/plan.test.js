@@ -199,15 +199,18 @@ test("technician checklist shows what's there now and exactly what to change", a
   assert.match(item("https-redirect").settings[0].to, /https:\/\/oldoffice\.com\//);
 });
 
-test("duplicate SPF records: delete each one, then add the merged record; existing senders are named", async () => {
+test("duplicate SPF records: edit the first in place to the merged record, delete the rest; existing senders are named", async () => {
   const d = "acme.com";
   const report = await runScan(d, fakeDeps({
     mx: { [d]: [{ exchange: "acme-com.mail.protection.outlook.com", priority: 0 }] },
     txt: { [d]: ["v=spf1 include:spf.protection.outlook.com -all", "v=spf1 include:sendgrid.net ~all"] },
   }));
   const spf = buildPlan(report, opts).items.find((i) => i.id === "spf");
-  assert.deepEqual(spf.records.map((r) => r.action), ["Delete", "Delete", "Add"]);
-  assert.equal(spf.records[2].value, "v=spf1 include:spf.protection.outlook.com include:sendgrid.net ~all");
+  assert.deepEqual(spf.records.map((r) => r.action), ["Replace", "Delete"]);
+  assert.equal(spf.records[0].current, "v=spf1 include:spf.protection.outlook.com -all");
+  assert.equal(spf.records[0].value, "v=spf1 include:spf.protection.outlook.com include:sendgrid.net ~all");
+  assert.equal(spf.records[1].value, "v=spf1 include:sendgrid.net ~all");
+  assert.match(spf.rollback, /back to exactly: v=spf1 include:spf\.protection\.outlook\.com -all/);
   assert.ok(spf.found.some((f) => /SendGrid/.test(f) && /Microsoft 365/.test(f)));
 
   const dkim = buildPlan(report, opts).items.find((i) => i.id === "dkim");
