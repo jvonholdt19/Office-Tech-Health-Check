@@ -14,6 +14,9 @@
     },
     "api/session.js": {
       "maxDuration": 10
+    },
+    "api/plan-confirm.js": {
+      "maxDuration": 30
     }
   },
   "headers": [
@@ -63,6 +66,12 @@
           "value": "no-store"
         }
       ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/plan/confirm",
+      "destination": "/api/plan-confirm"
     }
   ]
 }
