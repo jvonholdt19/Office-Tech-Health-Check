@@ -114,12 +114,14 @@ test("unverifiable DKIM becomes a free 'confirm at kickoff' item, not a paid fix
 });
 
 test("recommendSpf merges, dedupes, removes +all and adds the platform", () => {
+  // The platform include now goes before the final "all" (merge-safe order), not at the front.
   assert.equal(
-    recommendSpf(["v=spf1 include:mailgun.org +all", "v=spf1 include:mailgun.org ip4:1.2.3.4 -all"], "microsoft"),
-    "v=spf1 include:spf.protection.outlook.com include:mailgun.org ip4:1.2.3.4 ~all",
+    recommendSpf(["v=spf1 include:mailgun.org +all", "v=spf1 include:mailgun.org ip4:1.2.3.4 -all"], "microsoft").value,
+    "v=spf1 include:mailgun.org ip4:1.2.3.4 include:spf.protection.outlook.com ~all",
   );
-  assert.equal(recommendSpf(["v=spf1 redirect=_spf.acme.com"], "other"), "v=spf1 include:_spf.acme.com ~all");
-  assert.equal(recommendSpf([], "google"), "v=spf1 include:_spf.google.com ~all");
+  // A redirect with no other senders stays a redirect (RFC 7208 §6.1); it isn't turned into an include.
+  assert.equal(recommendSpf(["v=spf1 redirect=_spf.acme.com"], "other").value, "v=spf1 redirect=_spf.acme.com");
+  assert.equal(recommendSpf([], "google").value, "v=spf1 include:_spf.google.com ~all");
   assert.equal(recommendDmarc("none", "d@x.com"), "v=DMARC1; p=none; rua=mailto:d@x.com; fo=1");
 });
 
@@ -227,6 +229,6 @@ test("existing SPF is replaced, showing the current value next to the new one", 
   assert.equal(spf.records.length, 1);
   assert.equal(spf.records[0].action, "Replace");
   assert.equal(spf.records[0].current, "v=spf1 include:mailgun.org +all");
-  assert.equal(spf.records[0].value, "v=spf1 include:_spf.google.com include:mailgun.org ~all");
+  assert.equal(spf.records[0].value, "v=spf1 include:mailgun.org include:_spf.google.com ~all");
   assert.ok(spf.found.some((f) => /\+all/.test(f)));
 });

@@ -1,5 +1,5 @@
 // Fake network layer so tests never touch real DNS or websites.
-export function fakeResolver({ mx = {}, txt = {}, ns = {} } = {}) {
+export function fakeResolver({ mx = {}, txt = {}, ns = {}, a = {}, aaaa = {} } = {}) {
   const notFound = () => Object.assign(new Error("not found"), { code: "ENOTFOUND" });
   return {
     async resolveMx(name) {
@@ -10,6 +10,14 @@ export function fakeResolver({ mx = {}, txt = {}, ns = {} } = {}) {
       if (!(name in ns)) throw notFound();
       return ns[name];
     },
+    async resolve4(name) {
+      if (!(name in a)) throw notFound();
+      return a[name];
+    },
+    async resolve6(name) {
+      if (!(name in aaaa)) throw notFound();
+      return aaaa[name];
+    },
     async resolveTxt(name) {
       if (!(name in txt)) throw notFound();
       return txt[name].map((r) => (Array.isArray(r) ? r : [r]));
@@ -19,9 +27,9 @@ export function fakeResolver({ mx = {}, txt = {}, ns = {} } = {}) {
 
 export const NOW = new Date("2026-10-01T12:00:00Z");
 
-export function fakeDeps({ mx, txt, ns, tls, http, rdap } = {}) {
+export function fakeDeps({ mx, txt, ns, a, aaaa, tls, http, rdap } = {}) {
   return {
-    resolver: fakeResolver({ mx, txt, ns }),
+    resolver: fakeResolver({ mx, txt, ns, a, aaaa }),
     inspectTls: async (host) => (tls && tls[host]) || { ok: false, error: "ECONNREFUSED" },
     probeHttp: async () => http || { ok: false, error: "ECONNREFUSED" },
     fetchRdap: async () => rdap || { ok: false, error: "HTTP 404" },

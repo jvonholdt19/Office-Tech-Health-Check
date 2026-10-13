@@ -50,7 +50,7 @@ test("countSpfLookups follows includes recursively", async () => {
       "d.example.com": ["v=spf1 ip4:5.6.7.8 -all"],
     },
   });
-  assert.equal(await countSpfLookups(resolver, "v=spf1 include:a.example.com -all"), 1 + 2 + 1 + 2 + 0);
+  assert.equal((await countSpfLookups(resolver, "v=spf1 include:a.example.com -all")).count, 1 + 2 + 1 + 2 + 0);
 });
 
 test("SPF: missing, duplicate, permissive and healthy records", async () => {
