@@ -3,7 +3,6 @@
 // DNS records come from the prospect's domain and must be treated as untrusted.
 
 const $ = (id) => document.getElementById(id);
-const KEY = "ohc-plan-passcode";
 
 /** Tiny element builder: h("p", { class: "x" }, "text", child, ...) */
 function h(tag, attrs = {}, ...children) {
@@ -24,14 +23,22 @@ function h(tag, attrs = {}, ...children) {
 const money = (n) => `$${Number(n).toLocaleString("en-US")}`;
 const fmtDate = (iso) => new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
-function getPass() {
-  try { return sessionStorage.getItem(KEY) || ""; } catch { return ""; }
+// Technician access is a server-side session: the code is sent once to /api/session, which sets an
+// HttpOnly cookie. Nothing secret is kept in the page or in browser storage.
+async function api(path, { method = "GET", body } = {}) {
+  const res = await fetch(path, {
+    method,
+    credentials: "same-origin",
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const json = await res.json().catch(() => ({}));
+  if (res.status === 401 && path !== "/api/session") {
+    unlockUI(false);
+    showError("gate-error", "Your session has ended. Sign in again.");
+  }
+  return { res, body: json };
 }
-function setPass(v) {
-  try { v ? sessionStorage.setItem(KEY, v) : sessionStorage.removeItem(KEY); } catch { /* storage unavailable: keep in memory only */ }
-  memoryPass = v;
-}
-let memoryPass = getPass();
 
 function showError(id, msg) {
   $(id).textContent = msg || "";
@@ -429,12 +436,10 @@ function renderSimulation(sim, domain, zone) {
     verifyBtn.disabled = true;
     verifyMsg.textContent = "Checking public DNS…";
     try {
-      const res = await fetch("/api/verify", {
+      const { res, body } = await api("/api/verify", {
         method: "POST",
-        headers: { "x-plan-passcode": memoryPass, "Content-Type": "application/json" },
-        body: JSON.stringify({ domain, changes: dayOne.map(({ action, type, name, from, to, status }) => ({ action, type, name, from, to, status })) }),
+        body: { domain, changes: dayOne.map(({ action, type, name, from, to, status }) => ({ action, type, name, from, to, status })) },
       });
-      const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || "Couldn't verify.");
       body.results.forEach((r, i) => {
         const cell = liveCells.get(dayOne[i]);
@@ -466,26 +471,16 @@ function renderSimulation(sim, domain, zone) {
 /* Wiring                                                               */
 /* ------------------------------------------------------------------ */
 
-async function buildPlan(domain) {
+async function buildPlan(domain, opts = {}) {
   showError("plan-error", "");
   $("plan-output").hidden = true;
   $("plan-loading").hidden = false;
   $("plan-btn").disabled = true;
   try {
-    const res = zoneUpload
-      ? await fetch("/api/plan", {
-          method: "POST",
-          headers: { "x-plan-passcode": memoryPass, "Content-Type": "application/json" },
-          body: JSON.stringify({ domain, zone: zoneUpload }),
-        })
-      : await fetch(`/api/plan?domain=${encodeURIComponent(domain)}`, { headers: { "x-plan-passcode": memoryPass } });
-    const body = await res.json().catch(() => ({}));
-    if (res.status === 401) {
-      setPass("");
-      unlockUI(false);
-      showError("gate-error", "Wrong passcode.");
-      return;
-    }
+    const { res, body } = zoneUpload
+      ? await api("/api/plan", { method: "POST", body: { domain, zone: zoneUpload, ...(opts.confirmExport ? { confirmExport: opts.confirmExport } : {}) } })
+      : await api(`/api/plan?domain=${encodeURIComponent(domain)}`);
+    if (res.status === 401) return;
     if (!res.ok) throw new Error(body.error || "Something went wrong.");
     renderClient(body.plan);
     renderTech(body.plan, body.report);
@@ -504,11 +499,17 @@ async function buildPlan(domain) {
   }
 }
 
-$("gate-form").addEventListener("submit", (e) => {
+$("gate-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  setPass($("passcode").value);
-  $("passcode").value = "";
+  const code = $("access-code").value;
+  $("access-code").value = "";
   showError("gate-error", "");
+  try {
+    const { res, body } = await api("/api/session", { method: "POST", body: { code } });
+    if (!res.ok) return showError("gate-error", body.error || "Couldn't sign in.");
+  } catch {
+    return showError("gate-error", "Couldn't reach the server.");
+  }
   unlockUI(true);
   const d = new URLSearchParams(location.search).get("d");
   if (d) buildPlan(d);
@@ -520,8 +521,8 @@ $("plan-form").addEventListener("submit", (e) => {
   if (v) buildPlan(v);
 });
 
-$("lock-btn").addEventListener("click", () => {
-  setPass("");
+$("lock-btn").addEventListener("click", async () => {
+  await api("/api/session", { method: "DELETE" }).catch(() => {});
   $("plan-output").hidden = true;
   unlockUI(false);
 });
@@ -540,8 +541,11 @@ for (const tab of document.querySelectorAll(".tab")) {
 
 $("print-btn").addEventListener("click", () => window.print());
 
-if (memoryPass) {
-  unlockUI(true);
-  const d = new URLSearchParams(location.search).get("d");
-  if (d) buildPlan(d);
-}
+api("/api/session")
+  .then(({ body }) => {
+    if (!body.authenticated) return;
+    unlockUI(true);
+    const d = new URLSearchParams(location.search).get("d");
+    if (d) buildPlan(d);
+  })
+  .catch(() => {});

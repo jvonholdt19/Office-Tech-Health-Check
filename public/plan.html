@@ -16,19 +16,19 @@
         <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8"/><path d="M9 16.5l4.5 4.5L23 11.5"/></svg></span>
         <span class="brand-name">Fix Plan Builder <span class="private-tag">Private</span></span>
       </a>
-      <button type="button" class="link-btn" id="lock-btn" hidden>Lock</button>
+      <button type="button" class="link-btn" id="lock-btn" hidden>Sign out</button>
     </div>
   </header>
 
   <main class="wrap">
-    <!-- Passcode gate -->
+    <!-- Technician sign-in -->
     <section class="gate" id="gate">
       <h1>Fix Plan Builder</h1>
       <p class="lede">Turn a health check into a client proposal and your technician checklist.</p>
       <form id="gate-form" class="scan-form" autocomplete="off">
-        <label for="passcode" class="sr-only">Passcode</label>
-        <input id="passcode" type="password" placeholder="Passcode" required>
-        <button type="submit">Unlock</button>
+        <label for="access-code" class="sr-only">Technician access code</label>
+        <input id="access-code" type="password" placeholder="Technician access code" autocomplete="current-password" required>
+        <button type="submit">Sign in</button>
       </form>
       <p class="form-error" id="gate-error" role="alert" hidden></p>
     </section>

@@ -4,12 +4,14 @@ import { buildPlan, safetyCheckPlan } from "../lib/plan.js";
 import { defaultDeps } from "../lib/net.js";
 import { parseZone, zoneResolver, dkimSelectors, inventory, compareWithLive } from "../lib/zone.js";
 import { simulatePlan, liveBaseRecords } from "../lib/simulate.js";
+import { createHash } from "node:crypto";
 import { authorize, send, readJson, cachedDeps, passcodeMatches } from "../lib/private-api.js";
+import { audit } from "../lib/audit.js";
 
 export { passcodeMatches };
 
-// Private endpoint (header "x-plan-passcode", from the PLAN_PASSCODE environment variable;
-// locked when it isn't set):
+// Private endpoint (technician session cookie from POST /api/session; locked without
+// SESSION_SECRET and Supabase):
 //   GET  /api/plan?domain=acme.com                → plan from public DNS
 //   POST /api/plan { domain, zone: { text, filename } } → plan from the client's exported zone
 // Both include a dry run of the day-one changes. Uploaded records are never stored.
@@ -51,7 +53,8 @@ export async function buildFullPlan(domain, zoneUpload, baseDeps = defaultDeps) 
 
 export default async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "POST") return send(res, 405, { error: "Use GET or POST" }, { Allow: "GET, POST" });
-  if (!authorize(req, res)) return;
+  const auth = await authorize(req, res);
+  if (!auth) return;
 
   let domainInput;
   let zoneUpload = null;
@@ -71,7 +74,13 @@ export default async function handler(req, res) {
   if (parsed.error) return send(res, 400, { error: parsed.error });
 
   try {
-    return send(res, 200, await buildFullPlan(parsed.domain, zoneUpload));
+    const result = await buildFullPlan(parsed.domain, zoneUpload);
+    await audit("plan_build", {
+      sid: auth.sid, ip: auth.ip, ua: auth.ua, domain: parsed.domain, source: zoneUpload ? "upload" : "live",
+      // The upload itself is never logged or stored: only its fingerprint, size and format.
+      ...(zoneUpload ? { uploadSha256: createHash("sha256").update(zoneUpload.text).digest("hex"), uploadBytes: Buffer.byteLength(zoneUpload.text), uploadFormat: result.zone?.format || null } : {}),
+    }, auth.store);
+    return send(res, 200, result);
   } catch (err) {
     // Zone-file problems are explained to the user; anything else is logged without the upload's contents.
     if (err?.userFacing) return send(res, 400, { error: err.message });

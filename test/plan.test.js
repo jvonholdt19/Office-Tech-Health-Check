@@ -4,6 +4,7 @@ import { runScan } from "../lib/scan.js";
 import { buildPlan, recommendSpf, recommendDmarc } from "../lib/plan.js";
 import { identifyDnsHost } from "../lib/checks/dnshost.js";
 import handler, { passcodeMatches } from "../api/plan.js";
+import { setStoreForTests, memoryStore } from "../lib/store.js";
 import { fakeDeps, goodTls, rdapData, DKIM_RECORD } from "./fakes.js";
 
 const PRICES = { "domain-security": 75, "domain-renewal": 50, spf: 100, dkim: 75, dmarc: 200, ssl: 100, "https-redirect": 50 };
@@ -149,30 +150,31 @@ function fakeRes() {
   };
 }
 
-test("plan API is locked without a passcode and rejects wrong ones", async () => {
-  const saved = process.env.PLAN_PASSCODE;
+test("plan API is locked without SESSION_SECRET and no longer accepts a header passcode", async () => {
+  const saved = { ...process.env };
   try {
-    delete process.env.PLAN_PASSCODE;
+    delete process.env.SESSION_SECRET;
+    process.env.PLAN_PASSCODE = "correct-horse-battery";
+    setStoreForTests(memoryStore());
     let res = fakeRes();
     await handler({ method: "GET", url: "/api/plan?domain=acme.com", headers: {}, socket: {} }, res);
     assert.equal(res.statusCode, 503);
 
-    process.env.PLAN_PASSCODE = "correct-horse-battery";
+    process.env.SESSION_SECRET = "x".repeat(40);
     res = fakeRes();
-    await handler({ method: "GET", url: "/api/plan?domain=acme.com", headers: { "x-plan-passcode": "nope", "x-forwarded-for": "9.9.9.9" }, socket: {} }, res);
-    assert.equal(res.statusCode, 401);
+    await handler({ method: "GET", url: "/api/plan?domain=acme.com", headers: { "x-plan-passcode": "correct-horse-battery", "x-real-ip": "9.9.9.9" }, socket: {} }, res);
+    assert.equal(res.statusCode, 401, "the old header is ignored");
     assert.equal(res.headers["cache-control"], "no-store");
-
-    res = fakeRes();
-    await handler({ method: "GET", url: "/api/plan?domain=localhost", headers: { "x-plan-passcode": "correct-horse-battery", "x-forwarded-for": "8.8.8.8" }, socket: {} }, res);
-    assert.equal(res.statusCode, 400, "right passcode, invalid domain");
 
     assert.equal(passcodeMatches("a", "a"), true);
     assert.equal(passcodeMatches("a", "b"), false);
     assert.equal(passcodeMatches("", "b"), false);
   } finally {
-    if (saved === undefined) delete process.env.PLAN_PASSCODE;
-    else process.env.PLAN_PASSCODE = saved;
+    setStoreForTests(undefined);
+    for (const k of ["SESSION_SECRET", "PLAN_PASSCODE"]) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
   }
 });
 

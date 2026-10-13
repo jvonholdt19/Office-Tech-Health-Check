@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import handler from "../api/scan.js";
 import planHandler from "../api/plan.js";
 import verifyHandler from "../api/verify.js";
+import sessionHandler from "../api/session.js";
 
 const root = fileURLToPath(new URL("../public/", import.meta.url));
 const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".ico": "image/x-icon" };
@@ -17,6 +18,7 @@ http
     if (pathname === "/api/scan") return handler(req, res);
     if (pathname === "/api/plan") return planHandler(req, res);
     if (pathname === "/api/verify") return verifyHandler(req, res);
+    if (pathname === "/api/session") return sessionHandler(req, res);
     if (pathname === "/plan") req.url = "/plan.html";
     const file = normalize(join(root, pathname === "/" ? "index.html" : pathname === "/plan" ? "plan.html" : pathname));
     if (!file.startsWith(root)) {
