@@ -101,7 +101,7 @@ test("SAFETY: DMARC keeps the client's own report addresses and subdomain policy
     assert.match(r.value, /sp=quarantine/);
     assert.match(r.value, /adkim=s/);
   }
-  assert.equal(recommendDmarc("none", "d@x.com"), "v=DMARC1; p=none; rua=mailto:d@x.com; fo=1", "unchanged for a new record");
+  assert.equal(recommendDmarc("none", "d@x.com").value, "v=DMARC1; p=none; rua=mailto:d@x.com; fo=1", "unchanged for a new record");
 });
 
 test("SAFETY: DMARC never starts above monitor-only unless the client already enforces", async () => {

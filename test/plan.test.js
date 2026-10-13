@@ -122,7 +122,7 @@ test("recommendSpf merges, dedupes, removes +all and adds the platform", () => {
   // A redirect with no other senders stays a redirect (RFC 7208 §6.1); it isn't turned into an include.
   assert.equal(recommendSpf(["v=spf1 redirect=_spf.acme.com"], "other").value, "v=spf1 redirect=_spf.acme.com");
   assert.equal(recommendSpf([], "google").value, "v=spf1 include:_spf.google.com ~all");
-  assert.equal(recommendDmarc("none", "d@x.com"), "v=DMARC1; p=none; rua=mailto:d@x.com; fo=1");
+  assert.equal(recommendDmarc("none", "d@x.com").value, "v=DMARC1; p=none; rua=mailto:d@x.com; fo=1");
 });
 
 test("DMARC staging respects an existing enforced policy", async () => {
