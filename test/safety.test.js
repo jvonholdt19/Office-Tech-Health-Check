@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runScan } from "../lib/scan.js";
 import { buildPlan, recommendSpf, recommendDmarc, safetyCheckPlan } from "../lib/plan.js";
-import { fakeDeps } from "./fakes.js";
+import { fakeDeps, DKIM_RECORD } from "./fakes.js";
 
 const opts = {
   business: { name: "NWIM PM", fullName: "x", contactEmail: "josh@nwimpm.com", bookingUrl: "x", dmarcReportAddress: "dmarc@nwimpm.com" },
@@ -92,7 +92,7 @@ test("SAFETY: DMARC keeps the client's own report addresses and subdomain policy
   const d = "acme.com";
   const existing = "v=DMARC1; p=none; sp=quarantine; rua=mailto:reports@vendor.example; adkim=s";
   const { plan: p } = await plan(d, {
-    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], [`_dmarc.${d}`]: [existing], [`google._domainkey.${d}`]: ["v=DKIM1; p=MIIB"] },
+    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], [`_dmarc.${d}`]: [existing], [`google._domainkey.${d}`]: [DKIM_RECORD] },
   });
   const recs = p.items.find((i) => i.id === "dmarc").records.filter((r) => !r.zone);
   assert.equal(recs[0].current, existing);
@@ -116,7 +116,7 @@ test("SAFETY: DMARC never starts above monitor-only unless the client already en
 test("SAFETY: duplicate DMARC records: edit the first in place, delete the rest", async () => {
   const d = "acme.com";
   const { plan: p } = await plan(d, {
-    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], [`_dmarc.${d}`]: ["v=DMARC1; p=none", "v=DMARC1; p=reject"], [`google._domainkey.${d}`]: ["v=DKIM1; p=MIIB"] },
+    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], [`_dmarc.${d}`]: ["v=DMARC1; p=none", "v=DMARC1; p=reject"], [`google._domainkey.${d}`]: [DKIM_RECORD] },
   });
   const recs = p.items.find((i) => i.id === "dmarc").records.filter((r) => !r.zone);
   assert.deepEqual(recs.map((r) => r.action).slice(0, 2), ["Replace", "Delete"]);

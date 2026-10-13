@@ -25,6 +25,10 @@ export function fakeResolver({ mx = {}, txt = {}, ns = {}, a = {}, aaaa = {} } =
   };
 }
 
+// A real 2048-bit RSA public key (SubjectPublicKeyInfo, base64), so DKIM key-size checks see a valid key.
+export const DKIM_2048 = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr70UHT8KFBm54FnKShc+vvr7AK90xtOQUSfp8oFNC9leC70r6eMvxr0uvmXjlCg4z0WA07vtRW6ig6KvoIPRhEE+WbKkZutQzqMxtKYOvCtnV1WKeFthgKGVAw7o2/LcionXxWXLKfC5JqqM/ZeQ5RBlzDm3301F4GKBqg1QxUvj3oRYuGPxUvMq8oowuv/FzlGDhUcT6Tz43MLW5rZeyjuuLOhqIKV+ds4AqfF9ZsUCHSFZDeOgphtFxmVFlz74rYJbjQfARLuh8vC8vQHo87DTri5lzvB4AddGYUQIBC8X/qULELa57rRmoNCtWTOwUWQUALvT8ylGamFC5it8uwIDAQAB";
+export const DKIM_RECORD = `v=DKIM1; k=rsa; p=${DKIM_2048}`;
+
 export const NOW = new Date("2026-10-01T12:00:00Z");
 
 export function fakeDeps({ mx, txt, ns, a, aaaa, tls, http, rdap } = {}) {

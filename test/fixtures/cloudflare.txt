@@ -44,4 +44,4 @@ acme.com.	1	IN	MX	1 smtp.google.com.
 acme.com.	1	IN	TXT	"google-site-verification=abc123"
 acme.com.	1	IN	TXT	"v=spf1 include:sendgrid.net ~all"
 _dmarc.acme.com.	1	IN	TXT	"v=DMARC1; p=none; rua=mailto:reports@vendor.example"
-custom2024._domainkey.acme.com.	1	IN	TXT	"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAx" "IDAQAB"
+custom2024._domainkey.acme.com.	1	IN	TXT	"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr70UHT8KFBm54FnKShc+vvr7AK90xtOQUSfp8oFNC9leC70r6eMvxr0uvmXjlCg4z0WA07vtRW6ig6KvoIPRhEE+WbKkZutQzqMxtKYOvCtnV1WKeFthgKGVAw7o2/LcionXxWXLKfC5JqqM/ZeQ5RBlzDm3301F4GKBqg1QxUvj3oRYuGPxUvMq8oowuv/Fz" "lGDhUcT6Tz43MLW5rZeyjuuLOhqIKV+ds4AqfF9ZsUCHSFZDeOgphtFxmVFlz74rYJbjQfARLuh8vC8vQHo87DTri5lzvB4AddGYUQIBC8X/qULELa57rRmoNCtWTOwUWQUALvT8ylGamFC5it8uwIDAQAB"

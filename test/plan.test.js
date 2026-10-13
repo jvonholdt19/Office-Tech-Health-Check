@@ -4,7 +4,7 @@ import { runScan } from "../lib/scan.js";
 import { buildPlan, recommendSpf, recommendDmarc } from "../lib/plan.js";
 import { identifyDnsHost } from "../lib/checks/dnshost.js";
 import handler, { passcodeMatches } from "../api/plan.js";
-import { fakeDeps, goodTls, rdapData } from "./fakes.js";
+import { fakeDeps, goodTls, rdapData, DKIM_RECORD } from "./fakes.js";
 
 const PRICES = { "domain-security": 75, "domain-renewal": 50, spf: 100, dkim: 75, dmarc: 200, ssl: 100, "https-redirect": 50 };
 const PKG = [{ id: "pkg", name: "Package", price: 450, covers: Object.keys(PRICES), blurb: "All of it." }];
@@ -74,7 +74,7 @@ test("a single finding produces a single item and no package", async () => {
   const d = "acme.com";
   const report = await runScan(d, fakeDeps({
     mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
-    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], [`google._domainkey.${d}`]: ["v=DKIM1; p=MIIB"] },
+    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], [`google._domainkey.${d}`]: [DKIM_RECORD] },
     tls: { [d]: goodTls, [`www.${d}`]: goodTls },
     http: { ok: true, status: 301, location: `https://${d}/` },
     rdap: rdapData(),
@@ -89,7 +89,7 @@ test("a healthy domain gets an empty plan", async () => {
   const d = "acme.com";
   const report = await runScan(d, fakeDeps({
     mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
-    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], [`_dmarc.${d}`]: ["v=DMARC1; p=reject; rua=mailto:x@acme.com"], [`google._domainkey.${d}`]: ["v=DKIM1; p=MIIB"] },
+    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], [`_dmarc.${d}`]: ["v=DMARC1; p=reject; rua=mailto:x@acme.com"], [`google._domainkey.${d}`]: [DKIM_RECORD] },
     tls: { [d]: goodTls, [`www.${d}`]: goodTls },
     http: { ok: true, status: 301, location: `https://${d}/` },
     rdap: rdapData(),
@@ -131,7 +131,7 @@ test("DMARC staging respects an existing enforced policy", async () => {
     mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
     tls: { [d]: goodTls, [`www.${d}`]: goodTls }, http: { ok: true, status: 301, location: `https://${d}/` }, rdap: rdapData(),
   };
-  const txtBase = { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], [`google._domainkey.${d}`]: ["v=DKIM1; p=MIIB"] };
+  const txtBase = { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], [`google._domainkey.${d}`]: [DKIM_RECORD] };
   const partial = buildPlan(await runScan(d, fakeDeps({ ...base, txt: { ...txtBase, [`_dmarc.${d}`]: ["v=DMARC1; p=quarantine; pct=50; rua=mailto:x@acme.com"] } })), opts);
   assert.deepEqual(partial.items.find((i) => i.id === "dmarc").records.filter((r) => !r.zone).map((r) => r.value.match(/p=(\w+)/)[1]), ["quarantine", "reject"]);
   // p=reject without a report address passes the scan, so the plan must NOT charge to "fix" it
