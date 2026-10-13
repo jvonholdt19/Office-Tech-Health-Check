@@ -6,7 +6,7 @@ import { parseZone, zoneResolver, dkimSelectors, inventory, compareWithLive } fr
 import { applyPlan, exportChanges } from "../lib/simulate.js";
 import { verifyLive } from "../lib/verify.js";
 import { buildFullPlan } from "../api/plan.js";
-import { fakeDeps, fakeResolver } from "./fakes.js";
+import { fakeDeps, fakeResolver, DKIM_RECORD } from "./fakes.js";
 
 const fixture = (f) => readFileSync(new URL(`./fixtures/${f}`, import.meta.url), "utf8");
 
@@ -28,7 +28,7 @@ test("zone import: Cloudflare export (absolute names, split DKIM strings, proxie
   const z = parseZone(fixture("cloudflare.txt"), "acme.com");
   assert.equal(z.format, "bind");
   assert.equal(z.records.filter((r) => r.type === "TXT" && r.name === "acme.com").length, 2);
-  assert.equal(z.records.find((r) => r.name === "custom2024._domainkey.acme.com").value, "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxIDAQAB");
+  assert.equal(z.records.find((r) => r.name === "custom2024._domainkey.acme.com").value, DKIM_RECORD);
   assert.equal(z.records.find((r) => r.type === "SOA").name, "acme.com", "SOA name without trailing dot is not doubled");
   assert.deepEqual(dkimSelectors(z.records, "acme.com").sort(), ["custom2024", "mail2025"]);
   const inv = inventory(z.records, "acme.com");
@@ -88,7 +88,7 @@ test("compare with live DNS flags an out-of-date export", async () => {
   const z = parseZone(fixture("cloudflare.txt"), "acme.com");
   const live = fakeResolver({
     mx: { "acme.com": [{ exchange: "smtp.google.com", priority: 1 }] },
-    txt: { ...INCLUDES, "acme.com": ["v=spf1 include:sendgrid.net include:_spf.google.com ~all"], "_dmarc.acme.com": ["v=DMARC1; p=none; rua=mailto:reports@vendor.example"], "custom2024._domainkey.acme.com": ["v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxIDAQAB"] },
+    txt: { ...INCLUDES, "acme.com": ["v=spf1 include:sendgrid.net include:_spf.google.com ~all"], "_dmarc.acme.com": ["v=DMARC1; p=none; rua=mailto:reports@vendor.example"], "custom2024._domainkey.acme.com": [DKIM_RECORD] },
   });
   const diffs = await compareWithLive(z.records, "acme.com", live);
   const byLabel = Object.fromEntries(diffs.map((x) => [x.label, x]));

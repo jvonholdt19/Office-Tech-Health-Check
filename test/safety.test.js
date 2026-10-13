@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runScan } from "../lib/scan.js";
 import { buildPlan, recommendSpf, recommendDmarc, safetyCheckPlan } from "../lib/plan.js";
-import { fakeDeps } from "./fakes.js";
+import { fakeDeps, DKIM_RECORD } from "./fakes.js";
 
 const opts = {
   business: { name: "NWIM PM", fullName: "x", contactEmail: "josh@nwimpm.com", bookingUrl: "x", dmarcReportAddress: "dmarc@nwimpm.com" },
@@ -50,7 +50,7 @@ test("SAFETY: a normal SPF fix passes the live check and shows its lookup count"
   const { plan: p, deps } = await plan(d, { txt: { [d]: ["v=spf1 include:sendgrid.net ~all"] } });
   await safetyCheckPlan(p, deps);
   const rec = p.items.find((i) => i.id === "spf").records[0];
-  assert.equal(rec.value, "v=spf1 include:_spf.google.com include:sendgrid.net ~all");
+  assert.equal(rec.value, "v=spf1 include:sendgrid.net include:_spf.google.com ~all");
   assert.equal(rec.lookups, 5);
   assert.ok(!rec.blocked);
   assert.deepEqual(p.safety.problems, []);
@@ -76,23 +76,23 @@ test("SAFETY: the recommended SPF keeps every sender the domain allows today", (
   ];
   const terms = (r) => r.split(/\s+/).slice(1).filter((t) => !/all$/i.test(t)).map((t) => t.replace(/^\+/, "").replace(/^redirect=/, "include:").toLowerCase());
   for (const [current, provider] of cases) {
-    const next = new Set(terms(recommendSpf([current], provider)));
+    const next = new Set(terms(recommendSpf([current], provider).value));
     for (const t of terms(current)) assert.ok(next.has(t), `${current} → lost ${t}`);
   }
 });
 
 test("SAFETY: an existing strict -all is kept; only +all, ?all and missing become ~all", () => {
-  assert.equal(recommendSpf(["v=spf1 include:sendgrid.net -all"], "google"), "v=spf1 include:_spf.google.com include:sendgrid.net -all");
-  assert.equal(recommendSpf(["v=spf1 include:sendgrid.net +all"], "google"), "v=spf1 include:_spf.google.com include:sendgrid.net ~all");
-  assert.equal(recommendSpf(["v=spf1 include:sendgrid.net ?all"], "google"), "v=spf1 include:_spf.google.com include:sendgrid.net ~all");
-  assert.equal(recommendSpf(["v=spf1 include:sendgrid.net"], "google"), "v=spf1 include:_spf.google.com include:sendgrid.net ~all");
+  assert.equal(recommendSpf(["v=spf1 include:sendgrid.net -all"], "google").value, "v=spf1 include:sendgrid.net include:_spf.google.com -all");
+  assert.equal(recommendSpf(["v=spf1 include:sendgrid.net +all"], "google").value, "v=spf1 include:sendgrid.net include:_spf.google.com ~all");
+  assert.equal(recommendSpf(["v=spf1 include:sendgrid.net ?all"], "google").value, "v=spf1 include:sendgrid.net include:_spf.google.com ~all");
+  assert.equal(recommendSpf(["v=spf1 include:sendgrid.net"], "google").value, "v=spf1 include:sendgrid.net include:_spf.google.com ~all");
 });
 
 test("SAFETY: DMARC keeps the client's own report addresses and subdomain policy", async () => {
   const d = "acme.com";
   const existing = "v=DMARC1; p=none; sp=quarantine; rua=mailto:reports@vendor.example; adkim=s";
   const { plan: p } = await plan(d, {
-    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], [`_dmarc.${d}`]: [existing], [`google._domainkey.${d}`]: ["v=DKIM1; p=MIIB"] },
+    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], [`_dmarc.${d}`]: [existing], [`google._domainkey.${d}`]: [DKIM_RECORD] },
   });
   const recs = p.items.find((i) => i.id === "dmarc").records.filter((r) => !r.zone);
   assert.equal(recs[0].current, existing);
@@ -101,7 +101,7 @@ test("SAFETY: DMARC keeps the client's own report addresses and subdomain policy
     assert.match(r.value, /sp=quarantine/);
     assert.match(r.value, /adkim=s/);
   }
-  assert.equal(recommendDmarc("none", "d@x.com"), "v=DMARC1; p=none; rua=mailto:d@x.com; fo=1", "unchanged for a new record");
+  assert.equal(recommendDmarc("none", "d@x.com").value, "v=DMARC1; p=none; rua=mailto:d@x.com; fo=1", "unchanged for a new record");
 });
 
 test("SAFETY: DMARC never starts above monitor-only unless the client already enforces", async () => {
@@ -116,7 +116,7 @@ test("SAFETY: DMARC never starts above monitor-only unless the client already en
 test("SAFETY: duplicate DMARC records: edit the first in place, delete the rest", async () => {
   const d = "acme.com";
   const { plan: p } = await plan(d, {
-    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], [`_dmarc.${d}`]: ["v=DMARC1; p=none", "v=DMARC1; p=reject"], [`google._domainkey.${d}`]: ["v=DKIM1; p=MIIB"] },
+    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], [`_dmarc.${d}`]: ["v=DMARC1; p=none", "v=DMARC1; p=reject"], [`google._domainkey.${d}`]: [DKIM_RECORD] },
   });
   const recs = p.items.find((i) => i.id === "dmarc").records.filter((r) => !r.zone);
   assert.deepEqual(recs.map((r) => r.action).slice(0, 2), ["Replace", "Delete"]);

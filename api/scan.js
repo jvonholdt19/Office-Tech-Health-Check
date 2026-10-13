@@ -1,8 +1,8 @@
 import { normalizeDomain } from "../lib/domain.js";
 import { runScan } from "../lib/scan.js";
 
-// Best-effort, per-instance rate limit. Good enough to stop casual abuse.
-// Move to a shared store (e.g. Supabase or Upstash) if the tool gets popular.
+// Best-effort, per-instance rate limit for the public scan. Good enough to stop casual abuse.
+// (The technician endpoints use the durable Supabase limiter in lib/private-api.js.)
 const WINDOW_MS = 60_000;
 const MAX_PER_WINDOW = 10;
 const hits = new Map();
@@ -12,7 +12,8 @@ function rateLimited(ip) {
   const recent = (hits.get(ip) || []).filter((t) => now - t < WINDOW_MS);
   recent.push(now);
   hits.set(ip, recent);
-  if (hits.size > 5000) hits.clear();
+  // Drop only expired entries; clearing everything would let a flood of IPs reset every limit.
+  if (hits.size > 5000) for (const [k, ts] of hits) if (!ts.some((t) => now - t < WINDOW_MS)) hits.delete(k);
   return recent.length > MAX_PER_WINDOW;
 }
 
@@ -31,7 +32,8 @@ export default async function handler(req, res) {
   const parsed = normalizeDomain(url.searchParams.get("domain") || "");
   if (parsed.error) return send(res, 400, { error: parsed.error });
 
-  const ip = String(req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown").split(",")[0].trim();
+  // x-real-ip is set by Vercel; the leftmost x-forwarded-for can be chosen by the client.
+  const ip = String(req.headers["x-real-ip"] || req.socket?.remoteAddress || "unknown").trim();
   if (rateLimited(ip)) {
     return send(res, 429, { error: "Too many scans in a short time. Please wait a minute and try again." }, { "Retry-After": "60" });
   }

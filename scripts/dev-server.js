@@ -6,6 +6,16 @@ import { fileURLToPath } from "node:url";
 import handler from "../api/scan.js";
 import planHandler from "../api/plan.js";
 import verifyHandler from "../api/verify.js";
+import sessionHandler from "../api/session.js";
+import confirmHandler from "../api/plan-confirm.js";
+import { setStoreForTests, memoryStore } from "../lib/store.js";
+
+// Local preview only: without Supabase credentials, keep rate limits and the audit log in memory so
+// the technician pages can be tried out. Deployed functions never do this; they fail closed.
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.warn("[dev] Supabase isn't configured: using an in-memory store for rate limits and the audit log.");
+  setStoreForTests(memoryStore());
+}
 
 const root = fileURLToPath(new URL("../public/", import.meta.url));
 const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".ico": "image/x-icon" };
@@ -17,6 +27,8 @@ http
     if (pathname === "/api/scan") return handler(req, res);
     if (pathname === "/api/plan") return planHandler(req, res);
     if (pathname === "/api/verify") return verifyHandler(req, res);
+    if (pathname === "/api/session") return sessionHandler(req, res);
+    if (pathname === "/api/plan/confirm") return confirmHandler(req, res);
     if (pathname === "/plan") req.url = "/plan.html";
     const file = normalize(join(root, pathname === "/" ? "index.html" : pathname === "/plan" ? "plan.html" : pathname));
     if (!file.startsWith(root)) {

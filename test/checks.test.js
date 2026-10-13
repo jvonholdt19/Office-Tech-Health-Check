@@ -5,7 +5,7 @@ import { identifyProvider, parseSpf, countSpfLookups, checkSpf, checkDmarc, chec
 import { checkSsl, checkHttpsRedirect, checkDomainRegistration, summarizeRdap } from "../lib/checks/web.js";
 import { fetchRdap } from "../lib/net.js";
 import { runScan, scoreChecks, gradeFor } from "../lib/scan.js";
-import { fakeDeps, fakeResolver, goodTls, rdapData } from "./fakes.js";
+import { fakeDeps, fakeResolver, goodTls, rdapData, DKIM_RECORD } from "./fakes.js";
 
 const google = { key: "google", name: "Google Workspace" };
 const microsoft = { key: "microsoft", name: "Microsoft 365" };
@@ -50,7 +50,7 @@ test("countSpfLookups follows includes recursively", async () => {
       "d.example.com": ["v=spf1 ip4:5.6.7.8 -all"],
     },
   });
-  assert.equal(await countSpfLookups(resolver, "v=spf1 include:a.example.com -all"), 1 + 2 + 1 + 2 + 0);
+  assert.equal((await countSpfLookups(resolver, "v=spf1 include:a.example.com -all")).count, 1 + 2 + 1 + 2 + 0);
 });
 
 test("SPF: missing, duplicate, permissive and healthy records", async () => {
@@ -101,10 +101,10 @@ test("DMARC: missing, monitor-only, enforced", async () => {
 
 test("DKIM: finds the provider selector, warns when missing", async () => {
   const d = "acme.com";
-  let r = await checkDkim(d, fakeDeps({ txt: { [`google._domainkey.${d}`]: ["v=DKIM1; k=rsa; p=MIIBIjAN"] } }), google);
+  let r = await checkDkim(d, fakeDeps({ txt: { [`google._domainkey.${d}`]: [DKIM_RECORD] } }), google);
   assert.equal(r.status, "pass");
 
-  r = await checkDkim(d, fakeDeps({ txt: { [`selector1._domainkey.${d}`]: ["v=DKIM1; k=rsa; p=MIIBIjAN"] } }), microsoft);
+  r = await checkDkim(d, fakeDeps({ txt: { [`selector1._domainkey.${d}`]: [DKIM_RECORD] } }), microsoft);
   assert.equal(r.status, "pass");
 
   r = await checkDkim(d, fakeDeps(), microsoft);
@@ -173,7 +173,7 @@ test("runScan: a well-run Google Workspace office gets an A", async () => {
     txt: {
       [d]: ["v=spf1 include:_spf.google.com ~all"],
       [`_dmarc.${d}`]: ["v=DMARC1; p=reject; rua=mailto:dmarc@acme.com"],
-      [`google._domainkey.${d}`]: ["v=DKIM1; k=rsa; p=MIIB"],
+      [`google._domainkey.${d}`]: [DKIM_RECORD],
       "_spf.google.com": ["v=spf1 include:_netblocks.google.com ~all"],
     },
     tls: { [d]: goodTls, [`www.${d}`]: goodTls },

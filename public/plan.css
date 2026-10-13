@@ -151,3 +151,31 @@ code.wrap { word-break: break-all; white-space: pre-wrap; font-size: 13px; }
 .live-done { color: var(--pass); font-weight: 700; }
 .live-pending { color: var(--warn); font-weight: 700; }
 .live-error { color: var(--fail); font-weight: 700; }
+
+/* Change review: before | after */
+.review-panel { border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; margin: 18px 0 24px; }
+.review-panel h3 { margin-top: 0; }
+.diff-entry { border-top: 1px solid var(--border); padding: 14px 0; }
+.diff-entry[data-blocked="true"] .diff-head, .diff-blocked { color: var(--fail); }
+.diff-entry[data-blocked="unverified"] .diff-blocked { color: var(--warn); }
+.diff-head { margin-bottom: 8px; }
+.diff-head .action { text-transform: uppercase; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; }
+.diff-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.diff-col { min-width: 0; background: var(--bg, #f6f7f9); border-radius: 8px; padding: 8px 10px; }
+.diff-label { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+.diff-value { margin: 4px 0; overflow-wrap: anywhere; }
+.diff-value code { white-space: pre-wrap; word-break: break-word; }
+.diff-empty { color: var(--muted); font-style: italic; }
+.term.added, .diff-value.added code { background: #dcfce7; color: #14532d; border-radius: 3px; }
+.term.removed, .diff-value.removed code { background: #fee2e2; color: #7f1d1d; text-decoration: line-through; border-radius: 3px; }
+.diff-changes { margin: 8px 0 0; font-size: 14px; color: var(--muted); }
+.diff-changes .op-remove { color: #7f1d1d; }
+.diff-changes .op-add { color: #14532d; }
+.review-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+.check-row { display: flex; gap: 8px; align-items: center; }
+.confirm-dialog { max-width: 640px; width: calc(100% - 32px); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
+.confirm-dialog::backdrop { background: rgba(15, 23, 42, 0.45); }
+.confirm-dialog input[type="text"] { display: block; width: 100%; margin-top: 6px; padding: 8px 10px; font: inherit; }
+.copy-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+@media (max-width: 640px) { .diff-cols { grid-template-columns: 1fr; } }
+@media print { .diff-col { background: none; border: 1px solid #ccc; } }

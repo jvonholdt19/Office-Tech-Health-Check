@@ -4,7 +4,8 @@ import { runScan } from "../lib/scan.js";
 import { buildPlan, recommendSpf, recommendDmarc } from "../lib/plan.js";
 import { identifyDnsHost } from "../lib/checks/dnshost.js";
 import handler, { passcodeMatches } from "../api/plan.js";
-import { fakeDeps, goodTls, rdapData } from "./fakes.js";
+import { setStoreForTests, memoryStore } from "../lib/store.js";
+import { fakeDeps, goodTls, rdapData, DKIM_RECORD } from "./fakes.js";
 
 const PRICES = { "domain-security": 75, "domain-renewal": 50, spf: 100, dkim: 75, dmarc: 200, ssl: 100, "https-redirect": 50 };
 const PKG = [{ id: "pkg", name: "Package", price: 450, covers: Object.keys(PRICES), blurb: "All of it." }];
@@ -74,7 +75,7 @@ test("a single finding produces a single item and no package", async () => {
   const d = "acme.com";
   const report = await runScan(d, fakeDeps({
     mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
-    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], [`google._domainkey.${d}`]: ["v=DKIM1; p=MIIB"] },
+    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], [`google._domainkey.${d}`]: [DKIM_RECORD] },
     tls: { [d]: goodTls, [`www.${d}`]: goodTls },
     http: { ok: true, status: 301, location: `https://${d}/` },
     rdap: rdapData(),
@@ -89,7 +90,7 @@ test("a healthy domain gets an empty plan", async () => {
   const d = "acme.com";
   const report = await runScan(d, fakeDeps({
     mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
-    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], [`_dmarc.${d}`]: ["v=DMARC1; p=reject; rua=mailto:x@acme.com"], [`google._domainkey.${d}`]: ["v=DKIM1; p=MIIB"] },
+    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], [`_dmarc.${d}`]: ["v=DMARC1; p=reject; rua=mailto:x@acme.com"], [`google._domainkey.${d}`]: [DKIM_RECORD] },
     tls: { [d]: goodTls, [`www.${d}`]: goodTls },
     http: { ok: true, status: 301, location: `https://${d}/` },
     rdap: rdapData(),
@@ -114,13 +115,15 @@ test("unverifiable DKIM becomes a free 'confirm at kickoff' item, not a paid fix
 });
 
 test("recommendSpf merges, dedupes, removes +all and adds the platform", () => {
+  // The platform include now goes before the final "all" (merge-safe order), not at the front.
   assert.equal(
-    recommendSpf(["v=spf1 include:mailgun.org +all", "v=spf1 include:mailgun.org ip4:1.2.3.4 -all"], "microsoft"),
-    "v=spf1 include:spf.protection.outlook.com include:mailgun.org ip4:1.2.3.4 ~all",
+    recommendSpf(["v=spf1 include:mailgun.org +all", "v=spf1 include:mailgun.org ip4:1.2.3.4 -all"], "microsoft").value,
+    "v=spf1 include:mailgun.org ip4:1.2.3.4 include:spf.protection.outlook.com ~all",
   );
-  assert.equal(recommendSpf(["v=spf1 redirect=_spf.acme.com"], "other"), "v=spf1 include:_spf.acme.com ~all");
-  assert.equal(recommendSpf([], "google"), "v=spf1 include:_spf.google.com ~all");
-  assert.equal(recommendDmarc("none", "d@x.com"), "v=DMARC1; p=none; rua=mailto:d@x.com; fo=1");
+  // A redirect with no other senders stays a redirect (RFC 7208 §6.1); it isn't turned into an include.
+  assert.equal(recommendSpf(["v=spf1 redirect=_spf.acme.com"], "other").value, "v=spf1 redirect=_spf.acme.com");
+  assert.equal(recommendSpf([], "google").value, "v=spf1 include:_spf.google.com ~all");
+  assert.equal(recommendDmarc("none", "d@x.com").value, "v=DMARC1; p=none; rua=mailto:d@x.com; fo=1");
 });
 
 test("DMARC staging respects an existing enforced policy", async () => {
@@ -129,7 +132,7 @@ test("DMARC staging respects an existing enforced policy", async () => {
     mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
     tls: { [d]: goodTls, [`www.${d}`]: goodTls }, http: { ok: true, status: 301, location: `https://${d}/` }, rdap: rdapData(),
   };
-  const txtBase = { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], [`google._domainkey.${d}`]: ["v=DKIM1; p=MIIB"] };
+  const txtBase = { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], [`google._domainkey.${d}`]: [DKIM_RECORD] };
   const partial = buildPlan(await runScan(d, fakeDeps({ ...base, txt: { ...txtBase, [`_dmarc.${d}`]: ["v=DMARC1; p=quarantine; pct=50; rua=mailto:x@acme.com"] } })), opts);
   assert.deepEqual(partial.items.find((i) => i.id === "dmarc").records.filter((r) => !r.zone).map((r) => r.value.match(/p=(\w+)/)[1]), ["quarantine", "reject"]);
   // p=reject without a report address passes the scan, so the plan must NOT charge to "fix" it
@@ -147,30 +150,31 @@ function fakeRes() {
   };
 }
 
-test("plan API is locked without a passcode and rejects wrong ones", async () => {
-  const saved = process.env.PLAN_PASSCODE;
+test("plan API is locked without SESSION_SECRET and no longer accepts a header passcode", async () => {
+  const saved = { ...process.env };
   try {
-    delete process.env.PLAN_PASSCODE;
+    delete process.env.SESSION_SECRET;
+    process.env.PLAN_PASSCODE = "correct-horse-battery";
+    setStoreForTests(memoryStore());
     let res = fakeRes();
     await handler({ method: "GET", url: "/api/plan?domain=acme.com", headers: {}, socket: {} }, res);
     assert.equal(res.statusCode, 503);
 
-    process.env.PLAN_PASSCODE = "correct-horse-battery";
+    process.env.SESSION_SECRET = "x".repeat(40);
     res = fakeRes();
-    await handler({ method: "GET", url: "/api/plan?domain=acme.com", headers: { "x-plan-passcode": "nope", "x-forwarded-for": "9.9.9.9" }, socket: {} }, res);
-    assert.equal(res.statusCode, 401);
+    await handler({ method: "GET", url: "/api/plan?domain=acme.com", headers: { "x-plan-passcode": "correct-horse-battery", "x-real-ip": "9.9.9.9" }, socket: {} }, res);
+    assert.equal(res.statusCode, 401, "the old header is ignored");
     assert.equal(res.headers["cache-control"], "no-store");
-
-    res = fakeRes();
-    await handler({ method: "GET", url: "/api/plan?domain=localhost", headers: { "x-plan-passcode": "correct-horse-battery", "x-forwarded-for": "8.8.8.8" }, socket: {} }, res);
-    assert.equal(res.statusCode, 400, "right passcode, invalid domain");
 
     assert.equal(passcodeMatches("a", "a"), true);
     assert.equal(passcodeMatches("a", "b"), false);
     assert.equal(passcodeMatches("", "b"), false);
   } finally {
-    if (saved === undefined) delete process.env.PLAN_PASSCODE;
-    else process.env.PLAN_PASSCODE = saved;
+    setStoreForTests(undefined);
+    for (const k of ["SESSION_SECRET", "PLAN_PASSCODE"]) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
   }
 });
 
@@ -227,6 +231,6 @@ test("existing SPF is replaced, showing the current value next to the new one", 
   assert.equal(spf.records.length, 1);
   assert.equal(spf.records[0].action, "Replace");
   assert.equal(spf.records[0].current, "v=spf1 include:mailgun.org +all");
-  assert.equal(spf.records[0].value, "v=spf1 include:_spf.google.com include:mailgun.org ~all");
+  assert.equal(spf.records[0].value, "v=spf1 include:mailgun.org include:_spf.google.com ~all");
   assert.ok(spf.found.some((f) => /\+all/.test(f)));
 });

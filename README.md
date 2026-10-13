@@ -28,7 +28,7 @@ There are no dependencies.
 ```bash
 npm run dev                          # http://localhost:3000
 npm run scan -- acmeaccounting.com   # CLI report (add --json for raw output)
-npm test                             # 64 unit tests, no network needed
+npm test                             # unit tests, no network needed
 ```
 
 ## Client DNS records and dry run (private, on /plan)
@@ -39,7 +39,7 @@ npm test                             # 64 unit tests, no network needed
 
 ## Deploy
 
-Import the GitHub repo into Vercel with the Framework Preset set to **Other**. No build command or environment variables are needed.
+Import the GitHub repo into Vercel with the Framework Preset set to **Other**. No build command is needed. The public scan needs no environment variables; the private `/plan` tools need the ones listed under [Technician access and environment variables](#technician-access-and-environment-variables).
 
 ## Fix Plan Builder (private)
 
@@ -51,12 +51,48 @@ Rules the generator follows:
 - SPF repairs keep every existing sender, merge duplicate records, add the email platform and end in `~all`.
 - DMARC is staged: `p=none` with reports, then `quarantine`, then `reject`.
 
-**Setup (one time):**
-1. Vercel → Project → Settings → Environment Variables → add `PLAN_PASSCODE` (8+ characters) → redeploy. Until it's set, `/api/plan` stays locked (503).
-2. Edit prices, the package, the monthly offer and branding in `lib/config.js`.
-3. DMARC reports for clients go to `BUSINESS.dmarcReportAddress` (default `dmarc@nwimpm.com`). In Cloudflare, nwimpm.com:
+**Setup (one time):** see [Technician access and environment variables](#technician-access-and-environment-variables) below, then:
+1. Edit prices, the package, the monthly offer and branding in `lib/config.js`.
+2. DMARC reports for clients go to `BUSINESS.dmarcReportAddress` (default `dmarc@nwimpm.com`). In Cloudflare, nwimpm.com:
    - Email Routing → add a rule for `dmarc@nwimpm.com`, sending to a mailbox of your choice.
    - DNS → add TXT `*._report._dmarc` with value `v=DMARC1`. This one wildcard record authorizes reports from every client domain.
+
+## Accuracy rules (RFCs)
+
+- **SPF (RFC 7208):** lookups are counted exactly as §4.6.4 defines them: every `include`, `a`, `mx`, `ptr`, `exists` and `redirect` each time it's evaluated, following includes and redirects with loop detection (`redirect` is ignored when the record has `all`, §6.1). Void lookups (no answer) over 2 fail; an `mx` with over 10 names, unknown mechanisms and repeated `redirect=`/`exp=` are permanent errors; `ptr` is flagged (§5.5). If any lookup fails the count is shown as "at least N", never as exact.
+- **SPF proposals** are merge-safe: one record, every existing term kept in order, the platform include placed before `all`, `exp=` kept, `-all` kept if present (else `~all`). Only `ptr` and true duplicates are removed, each with a reason. Long records are split into 255-byte strings. A proposal needing over 10 lookups, over 2 void lookups, or whose count couldn't be verified can't be copied without an explicit override.
+- **DMARC (RFC 7489):** the record must start with exactly `v=DMARC1`, `p` is required; `sp`, `adkim`, `aspf`, `pct` (0–100) and `rua`/`ruf` (`mailto:` only) are validated. External report addresses must be authorized with `<domain>._report._dmarc.<destination>` (§7.1); the plan checks our own report address the same way. Merges keep every client tag.
+- **DKIM (RFC 6376, RFC 8301, RFC 8463):** keys are decoded to read their real size: under 1024 bits fails, 1024 warns (2048 recommended), 2048+ passes; Ed25519 is accepted; `t=y` warns.
+- **MX:** Google Workspace is recognised by its exact documented MX names only; Google mixed with other mail servers warns. The plan never proposes deleting an MX record.
+
+## Safety guards (server-side)
+
+Every plan is turned into a **change set** (before/after values for each changed name and type) and checked in `lib/guards.js`. A change set is blocked if it would remove an MX, NS, SOA, A/AAAA/CNAME, a non-SPF/DMARC TXT record or a DKIM selector; leave two SPF or two DMARC records; drop an SPF mechanism without a listed reason; or touch more than 5 records (`too-broad`). An upload that differs from live DNS is blocked (`upload-mismatch`) until the technician ticks **I confirm the export is current**. A partial-looking export gets a warning.
+
+The technician reviews a Before | After diff, presses **Confirm changes** and types the domain. `/api/plan/confirm` rebuilds the plan, recomputes the change-set hash and the guards, logs the confirmation, and only then are the **Copy value** buttons and downloads unlocked. **This tool never writes to a DNS provider or registrar.** Uploaded zones are never stored; only their SHA-256, size and format are logged.
+
+Website checks resolve the host first and refuse private, loopback, link-local, CGNAT, multicast and IPv4-mapped addresses, then connect to the vetted IP.
+
+## Technician access and environment variables
+
+`/plan` and its APIs are for technicians only. Sign-in is checked on the server and kept in a signed, `HttpOnly; Secure; SameSite=Strict` cookie for 8 hours. Nothing secret is stored in the browser.
+
+Set these in Vercel → Project → Settings → Environment Variables (server-side only; never prefix them with `NEXT_PUBLIC_` or put them in `public/`), then redeploy:
+
+| Variable | What it is |
+|---|---|
+| `TECH_ACCESS_CODE` | The technician access code (8+ characters). |
+| `SESSION_SECRET` | Random string of at least 32 characters used to sign session cookies, e.g. `openssl rand -base64 48`. Changing it signs everyone out. |
+| `SUPABASE_URL` | Your Supabase project URL (`https://<project>.supabase.co`). |
+| `SUPABASE_SERVICE_ROLE_KEY` | The project's service-role (secret) key. Used only by the serverless functions. |
+
+The technician endpoints **fail closed** (503) until `SESSION_SECRET` (32+ characters), an access code and both Supabase variables are set.
+
+**Supabase (rate limits and audit log):** run `supabase/migrations/20261013000000_dns_scanner.sql` once (Supabase dashboard → SQL Editor, or `supabase db push`). It creates the `rate_limit` and `audit_log` tables with row level security on and no `anon`/`authenticated` policies, plus the `rate_limit_hit` and `audit_append` functions (service role only). Limits: 5 failed sign-ins per IP per 15 minutes, 20 failed sign-ins overall per hour, 30 plan/verify/confirm requests per session per 10 minutes. The audit log keeps the newest 5000 events: `login_success`, `login_failure`, `logout`, `plan_build`, `plan_confirm`, `verify`.
+
+**Migrating from `PLAN_PASSCODE`:** `PLAN_PASSCODE` is still accepted as the access code while `TECH_ACCESS_CODE` isn't set. To migrate: add `TECH_ACCESS_CODE`, `SESSION_SECRET`, `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, run the migration, redeploy, sign in once to check, then delete `PLAN_PASSCODE`. The old `x-plan-passcode` header no longer works.
+
+`npm run dev` uses an in-memory store when the Supabase variables aren't set, so the technician pages can be tried locally (`SESSION_SECRET=… TECH_ACCESS_CODE=… npm run dev`).
 
 ## Customize
 
@@ -68,4 +104,3 @@ Rules the generator follows:
 - v2: an AI-written executive summary (Claude) and an emailed PDF report
 - Save scans to Supabase as a lead list, plus a monthly re-scan for retainer clients
 - Extra checks: MTA-STS, BIMI, Microsoft 365 tenant detection, blocklist lookups
-- A shared rate limit (the current one is per instance only)

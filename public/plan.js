@@ -3,7 +3,6 @@
 // DNS records come from the prospect's domain and must be treated as untrusted.
 
 const $ = (id) => document.getElementById(id);
-const KEY = "ohc-plan-passcode";
 
 /** Tiny element builder: h("p", { class: "x" }, "text", child, ...) */
 function h(tag, attrs = {}, ...children) {
@@ -24,14 +23,22 @@ function h(tag, attrs = {}, ...children) {
 const money = (n) => `$${Number(n).toLocaleString("en-US")}`;
 const fmtDate = (iso) => new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
-function getPass() {
-  try { return sessionStorage.getItem(KEY) || ""; } catch { return ""; }
+// Technician access is a server-side session: the code is sent once to /api/session, which sets an
+// HttpOnly cookie. Nothing secret is kept in the page or in browser storage.
+async function api(path, { method = "GET", body } = {}) {
+  const res = await fetch(path, {
+    method,
+    credentials: "same-origin",
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const json = await res.json().catch(() => ({}));
+  if (res.status === 401 && path !== "/api/session") {
+    unlockUI(false);
+    showError("gate-error", "Your session has ended. Sign in again.");
+  }
+  return { res, body: json };
 }
-function setPass(v) {
-  try { v ? sessionStorage.setItem(KEY, v) : sessionStorage.removeItem(KEY); } catch { /* storage unavailable: keep in memory only */ }
-  memoryPass = v;
-}
-let memoryPass = getPass();
 
 function showError(id, msg) {
   $(id).textContent = msg || "";
@@ -153,8 +160,31 @@ function renderClient(plan) {
 /* Technician view                                                      */
 /* ------------------------------------------------------------------ */
 
+// Copy buttons stay locked until the technician confirms the change set (typed domain) and the
+// server has verified and logged that confirmation. Only server-confirmed values unlock.
+const locked = []; // { el, value }
+let confirmedValues = null; // Set of values the server returned from /api/plan/confirm
+
+function lockable(el, value) {
+  const ok = confirmedValues && (value === null || confirmedValues.has(value));
+  el.disabled = !ok;
+  if (!ok) el.title = "Review the changes and press Confirm changes first";
+  locked.push({ el, value });
+  return el;
+}
+
+function unlockConfirmed(values) {
+  confirmedValues = new Set(values);
+  for (const { el, value } of locked) {
+    if (value === null || confirmedValues.has(value)) {
+      el.disabled = false;
+      el.removeAttribute("title");
+    }
+  }
+}
+
 function copyButton(text) {
-  return h("button", {
+  return lockable(h("button", {
     type: "button",
     class: "btn-ghost copy-btn",
     onclick: async (e) => {
@@ -164,9 +194,9 @@ function copyButton(text) {
       } catch {
         e.target.textContent = "Select & copy";
       }
-      setTimeout(() => (e.target.textContent = "Copy"), 1500);
+      setTimeout(() => (e.target.textContent = "Copy value"), 1500);
     },
-  }, "Copy");
+  }, "Copy value"), text);
 }
 
 function checklist(steps) {
@@ -238,7 +268,7 @@ function renderTech(plan, report) {
           ),
           r.current ? h("div", { class: "record-value current" }, h("span", { class: "lbl" }, "Now"), h("code", {}, r.current)) : null,
           r.current ? h("div", { class: "record-value" }, h("span", { class: "lbl" }, "New"), h("code", {}, r.value), r.blocked ? null : copyButton(r.value)) : value,
-          typeof r.lookups === "number" ? h("div", { class: "record-check" }, r.blocked ? `✗ Checked live: ${r.lookups} DNS lookups (limit 10)` : `✓ Checked live: ${r.lookups} of 10 DNS lookups`) : null,
+          r.lookupText ? h("div", { class: "record-check" }, r.blocked === true ? `✗ Checked live: ${r.lookupText} DNS lookups (limit 10), ${r.voids ?? "?"} void (limit 2)` : r.blocked === "unverified" ? `? Checked live: ${r.lookupText} DNS lookups so far; not every lookup could be resolved` : `✓ Checked live: ${r.lookupText} of 10 DNS lookups, ${r.voids} of 2 void`) : null,
         ),
       );
     }
@@ -268,6 +298,154 @@ function renderTech(plan, report) {
   const raw = h("details", {}, h("summary", {}, "Raw scan findings"));
   for (const c of report.checks) raw.append(h("p", {}, h("strong", {}, `${c.title}: ${c.status}`), " ", h("code", {}, c.detail || "")));
   root.append(raw);
+}
+
+/* ------------------------------------------------------------------ */
+/* Change review: before | after diff, guards, confirmation             */
+/* ------------------------------------------------------------------ */
+
+let lastBuild = null; // { domain, zone, confirmExport, body } for the plan on screen
+
+const isSpf = (v) => /^v=spf1(\s|$)/i.test(String(v));
+const isDmarcValue = (v) => /^v=DMARC1/i.test(String(v).trim());
+const spfParts = (v) => String(v).trim().split(/\s+/);
+const dmarcParts = (v) => String(v).split(";").map((t) => t.trim()).filter(Boolean);
+
+/** One value, split into terms (SPF) or tags (DMARC), with the ones missing on the other side marked. */
+function diffValue(value, otherValues, side) {
+  const split = isSpf(value) ? spfParts : isDmarcValue(value) ? dmarcParts : null;
+  if (!split) {
+    const changed = !otherValues.includes(value);
+    return h("div", { class: `diff-value${changed ? (side === "before" ? " removed" : " added") : ""}` }, h("code", {}, value));
+  }
+  // DMARC report lists (rua=a,b) are compared address by address, so a kept address isn't shown as removed.
+  const listTag = (t) => (split === dmarcParts ? t.match(/^(rua|ruf)\s*=\s*(.*)$/i) : null);
+  const tokens = (t) => {
+    const m = listTag(t);
+    return m ? m[2].split(",").map((a) => `${m[1].toLowerCase()}=${a.trim().toLowerCase()}`) : [t.toLowerCase()];
+  };
+  const other = new Set(otherValues.filter((v) => (split === spfParts ? isSpf(v) : isDmarcValue(v))).flatMap((v) => split(v).flatMap(tokens)));
+  const cls = (changed) => `term${changed ? (side === "before" ? " removed" : " added") : ""}`;
+  const sep = split === spfParts ? " " : "; ";
+  const parts = split(value);
+  return h("div", { class: "diff-value" }, h("code", {}, parts.flatMap((t, i) => {
+    const m = listTag(t);
+    const el = m
+      ? h("span", {}, `${m[1]}=`, m[2].split(",").flatMap((a, j, all) => {
+          const span = h("span", { class: cls(!other.has(`${m[1].toLowerCase()}=${a.trim().toLowerCase()}`)) }, a.trim());
+          return j < all.length - 1 ? [span, ","] : [span];
+        }))
+      : h("span", { class: cls(!other.has(t.toLowerCase())) }, t);
+    return i < parts.length - 1 ? [el, sep] : [el];
+  })));
+}
+
+function diffEntry(e) {
+  const side = (values, other, which) =>
+    h("div", { class: `diff-col ${which}` },
+      h("div", { class: "diff-label" }, which === "before" ? "Before" : "After"),
+      values.length ? values.map((v) => diffValue(v, other, which)) : h("div", { class: "diff-empty" }, "(nothing)"),
+    );
+  return h("div", { class: "diff-entry", "data-blocked": e.blocked ? String(e.blocked) : null },
+    h("div", { class: "diff-head" },
+      h("span", { class: "action" }, e.action), " ", h("b", {}, e.type), " ", h("code", {}, e.name),
+      h("span", { class: "muted" }, ` · ${e.reason}`),
+    ),
+    e.blocked ? h("div", { class: "diff-blocked" }, e.blocked === "unverified" ? `Unverified: ${e.blockedReason}` : `Blocked: ${e.blockedReason}`) : null,
+    h("div", { class: "diff-cols" }, side(e.before, e.after, "before"), side(e.after, e.before, "after")),
+    e.changes?.some((c) => c.op !== "keep")
+      ? h("ul", { class: "diff-changes" }, e.changes.filter((c) => c.op !== "keep").map((c) => h("li", { class: `op-${c.op}` }, `${c.op}: ${c.term}. ${c.reason}`)))
+      : null,
+  );
+}
+
+function renderChangeReview(body) {
+  const { changeSet = [], guards, simulation } = body;
+  const domain = body.plan.domain;
+  const box = h("section", { class: "review-panel" }, h("h3", {}, "Review the changes"));
+  if (!changeSet.length) {
+    box.append(h("p", { class: "muted" }, "No DNS records change in this plan."));
+    return box;
+  }
+  box.append(h("p", { class: "muted" }, `${guards.recordsTouched} record${guards.recordsTouched === 1 ? "" : "s"} change. Added terms are green, removed terms are red and struck through. Nothing is written to DNS by this tool: you enter the values at ${body.plan.dnsHost.name} yourself.`));
+
+  const hardBlocked = guards.blocked === true || guards.blocked === "too-broad";
+  if (guards.blocked) {
+    box.append(h("div", { class: "safety bad" }, h("b", {}, guards.blocked === "upload-mismatch" ? "Waiting on you: the upload doesn't match live DNS." : guards.blocked === "too-broad" ? "Blocked: the change set is too broad." : "Blocked by the safety guards:"), h("ul", {}, guards.reasons.map((r) => h("li", {}, r)))));
+  } else {
+    box.append(h("div", { class: "safety ok" }, "✓ Guards passed: no MX, NS, SOA, website, verification or DKIM records are removed; one SPF and one DMARC record; every existing SPF term is kept unless its removal is listed with a reason."));
+  }
+  for (const w of guards.warnings || []) box.append(h("div", { class: "safety bad" }, w));
+  for (const e of changeSet) box.append(diffEntry(e));
+
+  const status = h("p", { class: "muted", role: "status" });
+  const canConfirm = !guards.blocked && simulation?.verdict !== "blocked";
+  const btn = h("button", { type: "button", class: "btn-primary", disabled: canConfirm ? null : true, onclick: () => openConfirm(body, status) }, "Confirm changes");
+  box.append(h("div", { class: "review-actions no-print" }, btn, status));
+  box.append(h("p", { class: "muted small" }, "Confirming unlocks the day-one values only. Later DMARC stages stay locked: build and confirm the plan again when it's time for each stage."));
+  if (!canConfirm) status.textContent = hardBlocked || simulation?.verdict === "blocked" ? "Resolve the blocked items, then build the plan again." : "Confirm the export first (Client DNS records panel).";
+  return box;
+}
+
+function openConfirm(body, status) {
+  const domain = body.plan.domain;
+  const risky = body.changeSet.filter((e) => e.action !== "add");
+  const unverified = body.changeSet.filter((e) => e.blocked === "unverified");
+  const typed = h("input", { type: "text", autocomplete: "off", spellcheck: "false", placeholder: domain, "aria-label": "Type the domain name to confirm" });
+  const override = unverified.length ? h("input", { type: "checkbox", id: "override-unverified" }) : null;
+  const err = h("p", { class: "form-error", role: "alert", hidden: true });
+  const go = h("button", { type: "submit", class: "btn-primary" }, "Confirm and unlock values");
+  const dialog = h("dialog", { class: "confirm-dialog" },
+    h("form", { method: "dialog" },
+      h("h3", {}, `Confirm changes for ${domain}`),
+      risky.length
+        ? h("div", {}, h("p", {}, "These records are replaced or deleted:"), h("ul", {}, risky.map((e) => h("li", {}, `${e.action.toUpperCase()} ${e.type} ${e.name}: ${e.before.join(" | ") || "(nothing)"} → ${e.after.join(" | ") || "(nothing)"}`))))
+        : h("p", {}, "Only new records are added. Nothing existing is replaced or deleted."),
+      unverified.length ? h("label", { class: "check-row" }, override, ` I checked ${unverified.map((e) => `${e.type} ${e.name}`).join(", ")} by hand (lookup count couldn't be verified live)`) : null,
+      h("label", {}, `Type ${domain} to confirm`, typed),
+      err,
+      h("div", { class: "review-actions" }, go, h("button", { type: "button", class: "btn-ghost", onclick: () => dialog.close() }, "Cancel")),
+    ),
+  );
+  dialog.querySelector("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    err.hidden = true;
+    if (typed.value.trim().toLowerCase() !== domain) {
+      err.textContent = `Type ${domain} exactly.`;
+      err.hidden = false;
+      return;
+    }
+    if (override && !override.checked) {
+      err.textContent = "Tick the box once you've checked the unverified record by hand.";
+      err.hidden = false;
+      return;
+    }
+    go.disabled = true;
+    try {
+      const { res, body: out } = await api("/api/plan/confirm", {
+        method: "POST",
+        body: {
+          domain, typedDomain: typed.value.trim(), changeSetHash: body.changeSetHash,
+          ...(lastBuild?.zone ? { zone: lastBuild.zone } : {}),
+          ...(lastBuild?.confirmExport ? { confirmExport: lastBuild.confirmExport } : {}),
+          ...(override ? { overrideUnverified: override.checked } : {}),
+        },
+      });
+      if (!res.ok) throw new Error(out.error || "Couldn't confirm.");
+      unlockConfirmed(out.values.map((v) => v.value));
+      status.textContent = `✓ Confirmed and logged. ${out.values.length} value${out.values.length === 1 ? "" : "s"} unlocked for copying. Nothing has been changed in DNS.`;
+      dialog.close();
+    } catch (ex) {
+      err.textContent = ex.message;
+      err.hidden = false;
+    } finally {
+      go.disabled = false;
+    }
+  });
+  dialog.addEventListener("close", () => dialog.remove());
+  document.body.append(dialog);
+  dialog.showModal();
+  typed.focus();
 }
 
 /* ------------------------------------------------------------------ */
@@ -326,6 +504,14 @@ function renderZone(zone, domain) {
       h("b", {}, "The file doesn't match live DNS. Re-export before making changes, or check the domain's DNS is really hosted where this file came from:"),
       h("ul", {}, mismatches.map((d) => h("li", {}, `${d.label}: file has ${d.file.length ? d.file.join(" | ") : "nothing"}; live has ${d.live?.length ? d.live.join(" | ") : "nothing"}`))),
     ));
+    if (!lastBuild?.confirmExport) {
+      const tick = h("input", { type: "checkbox" });
+      const again = h("button", { type: "button", class: "btn-ghost", disabled: true, onclick: () => buildPlan(domain, { confirmExport: { sha256: zone.sha256 } }) }, "Rebuild with this confirmation");
+      tick.addEventListener("change", () => (again.disabled = !tick.checked));
+      box.append(h("div", { class: "no-print review-actions" }, h("label", { class: "check-row" }, tick, " I confirm the export is current"), again));
+    } else {
+      box.append(h("p", { class: "muted" }, "You confirmed this export is current."));
+    }
   } else if ((zone.differences || []).length && zone.differences.every((d) => d.match === null)) {
     box.append(h("div", { class: "safety bad" }, "Live DNS couldn't be reached, so the file wasn't compared with what's published. Build the plan again in a minute."));
   } else if ((zone.differences || []).some((d) => d.match === true)) {
@@ -429,12 +615,10 @@ function renderSimulation(sim, domain, zone) {
     verifyBtn.disabled = true;
     verifyMsg.textContent = "Checking public DNS…";
     try {
-      const res = await fetch("/api/verify", {
+      const { res, body } = await api("/api/verify", {
         method: "POST",
-        headers: { "x-plan-passcode": memoryPass, "Content-Type": "application/json" },
-        body: JSON.stringify({ domain, changes: dayOne.map(({ action, type, name, from, to, status }) => ({ action, type, name, from, to, status })) }),
+        body: { domain, changes: dayOne.map(({ action, type, name, from, to, status }) => ({ action, type, name, from, to, status })) },
       });
-      const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || "Couldn't verify.");
       body.results.forEach((r, i) => {
         const cell = liveCells.get(dayOne[i]);
@@ -453,12 +637,12 @@ function renderSimulation(sim, domain, zone) {
 
   root.append(
     h("div", { class: "sim-actions no-print" },
-      h("button", { type: "button", class: "btn-ghost", disabled: safe && dayOne.length ? null : true, onclick: () => download(`${domain}-day-one-changes.txt`, sim.export.zone, "text/plain") }, "Download changes (zone format)"),
-      h("button", { type: "button", class: "btn-ghost", disabled: safe && dayOne.length ? null : true, onclick: () => download(`${domain}-day-one-changes.csv`, sim.export.csv, "text/csv") }, "Download changes (CSV)"),
+      safe && dayOne.length ? lockable(h("button", { type: "button", class: "btn-ghost", onclick: () => download(`${domain}-day-one-changes.txt`, sim.export.zone, "text/plain") }, "Download changes (zone format)"), null) : h("button", { type: "button", class: "btn-ghost", disabled: true }, "Download changes (zone format)"),
+      safe && dayOne.length ? lockable(h("button", { type: "button", class: "btn-ghost", onclick: () => download(`${domain}-day-one-changes.csv`, sim.export.csv, "text/csv") }, "Download changes (CSV)"), null) : h("button", { type: "button", class: "btn-ghost", disabled: true }, "Download changes (CSV)"),
       verifyBtn,
     ),
     verifyMsg,
-    h("p", { class: "muted small" }, "The downloads contain only the day-one changes, never a full zone. Don't use your DNS host's \"replace zone\" import with them."),
+    h("p", { class: "muted small" }, "The downloads contain only the day-one changes, never a full zone, and unlock after you confirm the changes on the Technician checklist. Don't use your DNS host's \"replace zone\" import with them."),
   );
 }
 
@@ -466,29 +650,23 @@ function renderSimulation(sim, domain, zone) {
 /* Wiring                                                               */
 /* ------------------------------------------------------------------ */
 
-async function buildPlan(domain) {
+async function buildPlan(domain, opts = {}) {
   showError("plan-error", "");
   $("plan-output").hidden = true;
   $("plan-loading").hidden = false;
   $("plan-btn").disabled = true;
   try {
-    const res = zoneUpload
-      ? await fetch("/api/plan", {
-          method: "POST",
-          headers: { "x-plan-passcode": memoryPass, "Content-Type": "application/json" },
-          body: JSON.stringify({ domain, zone: zoneUpload }),
-        })
-      : await fetch(`/api/plan?domain=${encodeURIComponent(domain)}`, { headers: { "x-plan-passcode": memoryPass } });
-    const body = await res.json().catch(() => ({}));
-    if (res.status === 401) {
-      setPass("");
-      unlockUI(false);
-      showError("gate-error", "Wrong passcode.");
-      return;
-    }
+    const { res, body } = zoneUpload
+      ? await api("/api/plan", { method: "POST", body: { domain, zone: zoneUpload, ...(opts.confirmExport ? { confirmExport: opts.confirmExport } : {}) } })
+      : await api(`/api/plan?domain=${encodeURIComponent(domain)}`);
+    if (res.status === 401) return;
     if (!res.ok) throw new Error(body.error || "Something went wrong.");
+    lastBuild = { domain: body.plan.domain, zone: zoneUpload, confirmExport: opts.confirmExport || null, body };
+    locked.length = 0;
+    confirmedValues = null;
     renderClient(body.plan);
     renderTech(body.plan, body.report);
+    $("tech-view").prepend(renderChangeReview(body));
     if (body.zone) $("tech-view").prepend(renderZone(body.zone, body.plan.domain));
     renderSimulation(body.simulation, body.plan.domain, body.zone);
     $("domain").value = body.plan.domain;
@@ -504,11 +682,17 @@ async function buildPlan(domain) {
   }
 }
 
-$("gate-form").addEventListener("submit", (e) => {
+$("gate-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  setPass($("passcode").value);
-  $("passcode").value = "";
+  const code = $("access-code").value;
+  $("access-code").value = "";
   showError("gate-error", "");
+  try {
+    const { res, body } = await api("/api/session", { method: "POST", body: { code } });
+    if (!res.ok) return showError("gate-error", body.error || "Couldn't sign in.");
+  } catch {
+    return showError("gate-error", "Couldn't reach the server.");
+  }
   unlockUI(true);
   const d = new URLSearchParams(location.search).get("d");
   if (d) buildPlan(d);
@@ -520,8 +704,8 @@ $("plan-form").addEventListener("submit", (e) => {
   if (v) buildPlan(v);
 });
 
-$("lock-btn").addEventListener("click", () => {
-  setPass("");
+$("lock-btn").addEventListener("click", async () => {
+  await api("/api/session", { method: "DELETE" }).catch(() => {});
   $("plan-output").hidden = true;
   unlockUI(false);
 });
@@ -540,8 +724,11 @@ for (const tab of document.querySelectorAll(".tab")) {
 
 $("print-btn").addEventListener("click", () => window.print());
 
-if (memoryPass) {
-  unlockUI(true);
-  const d = new URLSearchParams(location.search).get("d");
-  if (d) buildPlan(d);
-}
+api("/api/session")
+  .then(({ body }) => {
+    if (!body.authenticated) return;
+    unlockUI(true);
+    const d = new URLSearchParams(location.search).get("d");
+    if (d) buildPlan(d);
+  })
+  .catch(() => {});
