@@ -70,7 +70,7 @@ $("domain-form").addEventListener("submit", (e) => {
 
 initGate({
   contentId: "tool",
-  // ?d=acme.com only pre-fills the field; a check runs when the technician presses "Check domain".
+  // ?d=example.com only pre-fills the field; a check runs when the technician presses "Check domain".
   onSignedIn: () => {
     const d = new URLSearchParams(location.search).get("d");
     if (d && !$("target").value) $("target").value = d.slice(0, 253);

@@ -96,16 +96,46 @@ input[type="checkbox"] { accent-color: var(--accent); }
 .brand-name { font-weight: 700; }
 .brand-sub { font-size: 0.8125rem; color: var(--muted); }
 .header-home { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; font-weight: 600; }
-.tech-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
-.tech-nav a,
-.tech-nav button {
-  display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border: 0; border-radius: 8px;
-  background: none; color: var(--muted); font-weight: 600; font-size: 0.9375rem; text-decoration: none; white-space: nowrap;
+.header-inner { position: relative; }
+.tech-nav { display: flex; align-items: center; gap: 2px; }
+.tech-nav > a,
+.tech-nav > button,
+.tools-menu > summary {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 8px;
+  background: none; color: var(--muted); font-weight: 600; font-size: 0.9375rem; text-decoration: none; white-space: nowrap; cursor: pointer;
 }
-.tech-nav a:hover { color: var(--text); background: var(--surface); }
-.tech-nav a[aria-current="page"] { color: var(--text); background: var(--surface-2); box-shadow: inset 0 -2px 0 var(--accent); }
+.tech-nav > a:hover, .tools-menu > summary:hover { color: var(--text); background: var(--surface); }
+.tech-nav > a[aria-current="page"],
+.tools-menu:has([aria-current="page"]) > summary { color: var(--text); background: var(--surface-2); box-shadow: inset 0 -2px 0 var(--accent); }
 .tech-nav .nav-signout { margin-left: 6px; color: var(--text); border: 1px solid var(--control-border); }
 .tech-nav .nav-signout:hover { border-color: var(--accent); }
+
+/* Tools menu: a <details> dropdown listing "All tools" and every live tool by category (from tools.js) */
+.tools-menu { position: relative; }
+.tools-menu > summary { list-style: none; }
+.tools-menu > summary::-webkit-details-marker { display: none; }
+.tools-menu > summary::after {
+  content: ""; width: 7px; height: 7px; margin: -3px 2px 0 2px;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg);
+}
+.tools-menu[open] > summary { color: var(--text); background: var(--surface); }
+.tools-menu[open] > summary::after { margin-top: 4px; transform: rotate(225deg); }
+.tools-menu-panel {
+  position: absolute; z-index: 20; top: calc(100% + 8px); right: 0; width: 300px;
+  max-height: min(70vh, 560px); overflow-y: auto; padding: 8px;
+  background: var(--surface); border: 1px solid var(--control-border); border-radius: var(--radius-sm);
+  box-shadow: 0 16px 40px rgba(3, 7, 18, 0.6);
+}
+.tools-menu-panel a {
+  display: flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: 8px;
+  color: var(--text); text-decoration: none; font-weight: 500;
+}
+.tools-menu-panel a:hover { background: var(--surface-2); }
+.tools-menu-panel a[aria-current="page"] { background: var(--surface-2); font-weight: 700; box-shadow: inset 3px 0 0 var(--accent); }
+.tools-menu-panel a[aria-current="page"]::after { content: "Current"; margin-left: auto; padding-left: 12px; font-size: 0.75rem; font-weight: 600; color: var(--muted); }
+.tools-menu-panel .tools-menu-all { font-weight: 650; border-bottom: 1px solid var(--border); border-radius: 8px 8px 0 0; margin-bottom: 4px; }
+.tools-menu-heading { margin: 10px 12px 2px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.tools-menu-panel ul { list-style: none; margin: 0; padding: 0; }
 
 /* Shared footer */
 .site-footer { border-top: 1px solid var(--border); color: var(--muted); font-size: 0.9375rem; padding: 28px 0 36px; margin-top: 24px; }
@@ -114,10 +144,12 @@ input[type="checkbox"] { accent-color: var(--accent); }
 .footer-note { font-size: 0.875rem; }
 
 @media (max-width: 760px) {
-  /* The nav drops under the brand and wraps; every link stays a 44px target. No JS needed. */
+  /* One row under the brand (Tools, Fix Plan, Sign out); the Tools menu opens full width. No JS needed. */
   .header-inner { padding-top: 10px; padding-bottom: 6px; }
   .tech-nav { width: 100%; margin-left: -12px; }
-  .tech-nav .nav-signout { margin-left: 0; }
+  .tech-nav .nav-signout { margin-left: auto; }
+  .tools-menu { position: static; }
+  .tools-menu-panel { left: 16px; right: 16px; width: auto; top: calc(100% + 2px); }
 }
 @media (max-width: 420px) {
   .brand-sub { font-size: 0.75rem; }

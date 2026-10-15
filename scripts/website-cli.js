@@ -1,4 +1,4 @@
-// Usage: npm run website -- acmeaccounting.com   (add --json for raw output)
+// Usage: npm run website -- example.com   (add --json for raw output)
 import { runWebsiteScan } from "../lib/website-scan.js";
 
 const args = process.argv.slice(2);

@@ -25,11 +25,25 @@
         </span>
       </a>
       <a class="header-home" id="gate-home" href="/">Back to home</a>
-      <nav class="tech-nav" id="tech-nav" aria-label="Tools" hidden>
-        <a href="/tools">Tools</a>
-        <a href="/tools/email" aria-current="page">Email</a>
-        <a href="/tools/website">Website</a>
-        <a href="/tools/domain">Domain</a>
+      <nav class="tech-nav" id="tech-nav" aria-label="Technician" hidden>
+        <details class="tools-menu">
+          <summary>Tools</summary>
+          <div class="tools-menu-panel">
+            <a class="tools-menu-all" href="/tools">All tools</a>
+            <p class="tools-menu-heading" id="tools-menu-email">Email</p>
+            <ul aria-labelledby="tools-menu-email">
+              <li><a href="/tools/email" aria-current="page">Email Security Check</a></li>
+            </ul>
+            <p class="tools-menu-heading" id="tools-menu-web">Web</p>
+            <ul aria-labelledby="tools-menu-web">
+              <li><a href="/tools/website">Website Security Check</a></li>
+            </ul>
+            <p class="tools-menu-heading" id="tools-menu-domain">Domain</p>
+            <ul aria-labelledby="tools-menu-domain">
+              <li><a href="/tools/domain">Domain Health</a></li>
+            </ul>
+          </div>
+        </details>
         <a href="/plan">Fix Plan</a>
         <button type="button" class="nav-signout" id="lock-btn" hidden>Sign out</button>
       </nav>
@@ -60,7 +74,7 @@
         <form id="scan-form" class="scan-form" novalidate>
           <label for="domain" class="sr-only">Business domain</label>
           <input id="domain" name="domain" type="text" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false"
-                 placeholder="yourbusiness.com" required>
+                 placeholder="example.com" required>
           <button type="submit" id="scan-btn">Run check</button>
         </form>
         <p class="form-error" id="form-error" role="alert" hidden></p>

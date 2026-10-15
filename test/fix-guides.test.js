@@ -12,27 +12,27 @@ const PLATFORMS = ["cloudflare", "wordpress", "apache", "nginx", "iis", "builder
 // Website Security Check guides; Domain Health guides (tool: "domain") use registrar/DNS platforms
 // and are covered in test/domain-health.test.js.
 const WEBSITE_GUIDES = Object.entries(FIX_GUIDES).filter(([, g]) => g.tool !== "domain");
-const page = (headers = {}, body = "", url = "https://acmedental.com/", status = 200) => ({ ok: true, url, status, headers, body, truncated: false });
+const page = (headers = {}, body = "", url = "https://example.com/", status = 200) => ({ ok: true, url, status, headers, body, truncated: false });
 const chain = (responses, extra = {}) => ({ ok: true, responses, final: responses.at(-1), ...extra });
-const tls = (o) => [{ host: "acmedental.com", ok: true, authorized: true, validTo: new Date(NOW.getTime() + 90 * 864e5).toISOString(), protocol: "TLSv1.3", ...o }];
+const tls = (o) => [{ host: "example.com", ok: true, authorized: true, validTo: new Date(NOW.getTime() + 90 * 864e5).toISOString(), protocol: "TLSv1.3", ...o }];
 const now = { now: () => NOW };
 
 // Every warn/fail outcome the website checks can produce, built by running the real check functions.
 async function flaggedOutcomes() {
   const out = [];
   const add = (r) => (r.status === "warn" || r.status === "fail") && out.push(r);
-  add(W.checkHttpsAvailable({ host: "acmedental.com", https: { ok: false, error: "ECONNREFUSED" }, http: chain([page({}, "", "http://acmedental.com/")]) }));
-  add(W.checkHttpsAvailable({ host: "acmedental.com", https: chain([page({ location: "http://acmedental.com/" }, "", "https://acmedental.com/", 301), page({}, "", "http://acmedental.com/")], { downgraded: true }), http: null }));
-  add(W.checkHttpRedirect({ http: chain([page({}, "", "http://acmedental.com/")]) }));
+  add(W.checkHttpsAvailable({ host: "example.com", https: { ok: false, error: "ECONNREFUSED" }, http: chain([page({}, "", "http://example.com/")]) }));
+  add(W.checkHttpsAvailable({ host: "example.com", https: chain([page({ location: "http://example.com/" }, "", "https://example.com/", 301), page({}, "", "http://example.com/")], { downgraded: true }), http: null }));
+  add(W.checkHttpRedirect({ http: chain([page({}, "", "http://example.com/")]) }));
   for (const t of [tls({ authorized: false, authorizationError: "CERT_HAS_EXPIRED" }), tls({ validTo: new Date(NOW.getTime() + 15 * 864e5).toISOString() }), tls({ validTo: new Date(NOW.getTime() + 3 * 864e5).toISOString() })]) {
-    add(W.checkCertificate({ host: "acmedental.com", tls: t, usesWww: false }, now));
+    add(W.checkCertificate({ host: "example.com", tls: t, usesWww: false }, now));
   }
-  add(W.checkCertificate({ host: "acmedental.com", tls: [...tls({}), { host: "www.acmedental.com", ok: true, authorized: false, authorizationError: "ERR_TLS_CERT_ALTNAME_INVALID" }], usesWww: false }, now));
-  add(W.checkTlsDetails({ host: "acmedental.com", tls: tls({ protocol: "TLSv1" }) }));
-  add(W.checkTlsDetails({ host: "acmedental.com", tls: tls({ keyType: "RSA", keyBits: 1024 }) }));
+  add(W.checkCertificate({ host: "example.com", tls: [...tls({}), { host: "www.example.com", ok: true, authorized: false, authorizationError: "ERR_TLS_CERT_ALTNAME_INVALID" }], usesWww: false }, now));
+  add(W.checkTlsDetails({ host: "example.com", tls: tls({ protocol: "TLSv1" }) }));
+  add(W.checkTlsDetails({ host: "example.com", tls: tls({ keyType: "RSA", keyBits: 1024 }) }));
   add(W.checkHsts(null));
   add(W.checkHsts(page()));
-  add(W.checkHsts(page(), { http: chain([page({ "strict-transport-security": "max-age=600" }, "", "http://acmedental.com/")]) }));
+  add(W.checkHsts(page(), { http: chain([page({ "strict-transport-security": "max-age=600" }, "", "http://example.com/")]) }));
   add(W.checkHsts(page({ "strict-transport-security": "max-age=0" })));
   add(W.checkHsts(page({ "strict-transport-security": "max-age=600" })));
   add(W.checkFraming(page()));
@@ -43,12 +43,12 @@ async function flaggedOutcomes() {
   add(W.checkCsp(page({ "content-security-policy": "script-src *" })));
   add(W.checkCsp(page({ "content-security-policy": "frame-ancestors 'self'" })));
   add(W.checkReferrerPolicy(page({ "referrer-policy": "unsafe-url" })));
-  add(W.checkCors(page({ "access-control-allow-origin": "https://evil.example", "access-control-allow-credentials": "true" }), "acmedental.com"));
+  add(W.checkCors(page({ "access-control-allow-origin": "https://evil.example", "access-control-allow-credentials": "true" }), "example.com"));
   add(W.checkCookies({ https: chain([page({ "set-cookie": ["PHPSESSID=1; HttpOnly"] })]) }));
   add(W.checkCookies({ https: chain([page({ "set-cookie": ["PHPSESSID=1; Secure"] })]) }));
   add(W.checkMixedContent(page({}, `<script src="http://x.example/a.js"></script>`)));
   add(W.checkMixedContent(page({}, `<img src="http://x.example/a.png">`)));
-  add(W.checkSri(page({}, `<script src="https://cdn.tinywidgets.io/w.js"></script>`), "acmedental.com"));
+  add(W.checkSri(page({}, `<script src="https://widgets.example.net/w.js"></script>`), "example.com"));
   add(W.checkVersionDisclosure(page({ server: "Apache/2.4.1" })));
   const versions = async () => ({ ok: true, latest: "6.8.3" });
   add(await W.checkWordPress(page({}, `<meta name="generator" content="WordPress 6.8.1">`), { wordpressVersions: versions }));
@@ -208,11 +208,11 @@ test("CSP guide notes that report-only violations show in the console and no rep
 
 test("messages: every placeholder is filled and nothing else about who ran the scan", async () => {
   for (const r of await flaggedOutcomes()) {
-    const g = renderGuide(r, "acmedental.com");
+    const g = renderGuide(r, "example.com");
     assert.ok(!/\{(domain|finding|detail)\}/.test(g.message), `${r.id}: placeholders filled`);
     assert.ok(!/\{[a-z]+\}/i.test(g.message), `${r.id}: no {…} left`);
     assert.ok(!/\{[a-z]+\}/i.test(g.verify), `${r.id}: verify filled`);
-    assert.match(g.message, /acmedental\.com/);
+    assert.match(g.message, /example\.com/);
     assert.match(g.message, /our IT provider/i);
     assert.ok(!/office tech|nwimpm/i.test(g.message), `${r.id}: doesn't name the scanner`);
   }
@@ -221,22 +221,22 @@ test("messages: every placeholder is filled and nothing else about who ran the s
 });
 
 test("snippets keep server-side variables like {HTTPS} and {R:1} but fill {domain}", () => {
-  const g = renderGuide({ id: "https-redirect", status: "warn", summary: "x", detail: "y", data: { code: "no-redirect" } }, "acmedental.com");
+  const g = renderGuide({ id: "https-redirect", status: "warn", summary: "x", detail: "y", data: { code: "no-redirect" } }, "example.com");
   const iis = g.platforms.find((p) => p.id === "iis").snippet.code;
   assert.match(iis, /\{HTTPS\}/);
   assert.match(iis, /\{R:1\}/);
-  assert.match(g.platforms.find((p) => p.id === "nginx").snippet.code, /server_name acmedental\.com www\.acmedental\.com;/);
+  assert.match(g.platforms.find((p) => p.id === "nginx").snippet.code, /server_name example\.com www\.example\.com;/);
 });
 
 test("the report carries guides only for warn/fail checks, and stays small in the worst case", async () => {
   const routes = {
-    "http://acmedental.com/": page({ server: "Apache/2.4.29", "set-cookie": ["PHPSESSID=1"] }, `<meta name="generator" content="WordPress 5.0">`, "http://acmedental.com/"),
-    "https://acmedental.com/": page(
+    "http://example.com/": page({ server: "Apache/2.4.29", "set-cookie": ["PHPSESSID=1"] }, `<meta name="generator" content="WordPress 5.0">`, "http://example.com/"),
+    "https://example.com/": page(
       { server: "Apache/2.4.29", "x-frame-options": "ALLOW-FROM x", "content-security-policy": "script-src *", "referrer-policy": "unsafe-url", "set-cookie": ["PHPSESSID=1", "auth_token=2; Secure"], "access-control-allow-origin": "null", "access-control-allow-credentials": "true" },
-      `<meta name="generator" content="WordPress 5.0"><script src="http://x.io/a.js"></script><script src="https://cdn.tinywidgets.io/w.js"></script>` + "<p>filler</p>".repeat(2000),
+      `<meta name="generator" content="WordPress 5.0"><script src="http://static.example.org/a.js"></script><script src="https://widgets.example.net/w.js"></script>` + "<p>filler</p>".repeat(2000),
     ),
   };
-  const r = await runWebsiteScan("acmedental.com", {
+  const r = await runWebsiteScan("example.com", {
     resolver: fakeResolver(),
     fetchPage: async (url) => routes[url] || { ok: false, error: "ECONNREFUSED" },
     inspectTls: async () => ({ ok: true, authorized: true, validTo: new Date(NOW.getTime() + 3 * 864e5).toISOString(), protocol: "TLSv1", keyType: "RSA", keyBits: 1024 }),

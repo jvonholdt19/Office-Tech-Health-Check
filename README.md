@@ -11,7 +11,7 @@ IT and security health checks for small offices, by NWIM Project Management.
 | `/tools/domain` | Technicians | **Domain Health** (`GET /api/domain`) |
 | `/plan` | Technicians | Fix Plan Builder |
 
-Old scanner links (`/?d=acme.com`, `/?domain=acme.com`) redirect (307) to `/tools/email?d=acme.com` (rules in `lib/redirects.js`, mirrored in `vercel.json`), so signed-out visitors land on the sign-in gate and the domain is filled in after sign-in.
+Old scanner links (`/?d=example.com`, `/?domain=example.com`) redirect (307) to `/tools/email?d=example.com` (rules in `lib/redirects.js`, mirrored in `vercel.json`), so signed-out visitors land on the sign-in gate and the domain is filled in after sign-in.
 
 The Email Security Check looks at, using only public records:
 
@@ -40,8 +40,8 @@ There are no dependencies.
 
 ```bash
 npm run dev                          # http://localhost:3000
-npm run scan -- acmeaccounting.com   # CLI report (add --json for raw output)
-npm run website -- acmeaccounting.com  # Website Security Check from the CLI (add --json)
+npm run scan -- example.com   # CLI report (add --json for raw output)
+npm run website -- example.com  # Website Security Check from the CLI (add --json)
 npm test                             # unit tests, no network needed
 npm run lint                         # zero-dependency lint: node --check + CSP-safe HTML
 npm run build                        # lint + tests
@@ -59,9 +59,9 @@ Import the GitHub repo into Vercel with the Framework Preset set to **Other**. N
 
 ## Technician tools (private, /tools)
 
-`/tools` is a dashboard of technician tools behind the same sign-in as `/plan`. The cards come from the `TOOLS` registry in `public/tools.js` (`{ id, name, blurb, href, status: "live" | "soon" }`); moving a tool means changing its `href` there. Live today: the Email Security Check (`/tools/email`), Domain Health (`/tools/domain`) and the Website Security Check (`/tools/website`).
+`/tools` is a dashboard of technician tools behind the same sign-in as `/plan`. The cards come from the `TOOLS` registry in `public/tools.js` (`{ id, category, icon, name, blurb, href, status: "live" | "soon" }`), the one list of tools: the dashboard cards (`public/dashboard.js`) and the header's Tools menu on every tool page are both built from it. To add or move a tool, edit the registry, give a new tool its page under `public/tools/` and an entry in `PAGES` in `scripts/site-chrome.js`, then run `node scripts/sync-chrome.js`; `test/branding.test.js` fails until every live tool is in the menu on every page. Live today: the Email Security Check (`/tools/email`), Domain Health (`/tools/domain`) and the Website Security Check (`/tools/website`).
 
-**Website Security Check** makes plain GETs to the homepage over HTTPS and HTTP and follows up to 5 redirects by hand. Every hop is re-resolved and vetted (private, loopback, link-local and metadata addresses are refused) and limited to http(s), default ports, no IP literals and the exact host entered plus its `www.` variant (`acme.com` ↔ `www.acme.com`). A redirect anywhere else, other subdomains included, is reported as an off-site redirect and not followed. `/tools/website?t=acme.com` only pre-fills the field; a scan runs only when the technician presses **Check website**. It never probes other paths or sends payloads.
+**Website Security Check** makes plain GETs to the homepage over HTTPS and HTTP and follows up to 5 redirects by hand. Every hop is re-resolved and vetted (private, loopback, link-local and metadata addresses are refused) and limited to http(s), default ports, no IP literals and the exact host entered plus its `www.` variant (`example.com` ↔ `www.example.com`). A redirect anywhere else, other subdomains included, is reported as an off-site redirect and not followed. `/tools/website?t=example.com` only pre-fills the field; a scan runs only when the technician presses **Check website**. It never probes other paths or sends payloads.
 
 Grading follows Mozilla HTTP Observatory, the OWASP Secure Headers Project, OWASP ASVS 4.0.3 (V14.4 headers, V3.4 cookies) and SSL Labs basics, softened where a small office would otherwise be marked down for optional extras.
 
@@ -183,7 +183,7 @@ The technician endpoints **fail closed** (503) until `SESSION_SECRET` (32+ chara
 
 - **Contact details:** the phone number and email are in the shared footer (`scripts/site-chrome.js`) and the lander's call to action (`public/index.html`).
 - **Colours and base styles:** `public/brand.css`, loaded first on every page. It holds the design tokens (dark screen palette, status and grade colours, and the light palette used when printing), the header, footer, skip link, buttons and inputs. `test/branding.test.js` checks every text/background pair for WCAG 2.2 AA contrast, on screen and in print, so a colour change that fails contrast fails the build.
-- **Header and footer:** every page has the same static markup (no JS injection). The canonical copy is in `scripts/site-chrome.js`; after changing it, run `node scripts/sync-chrome.js` to rewrite the pages (it isn't part of the build). `test/branding.test.js` fails if any page drifts. Technician pages show the tools nav (Tools · Email · Website · Domain · Fix Plan · Sign out) once signed in, and "Back to home" on the sign-in screen.
+- **Header and footer:** every page has the same static markup (no JS injection). The canonical copy is in `scripts/site-chrome.js`; after changing it, run `node scripts/sync-chrome.js` to rewrite the pages (it isn't part of the build). `test/branding.test.js` fails if any page drifts. Once signed in, the dashboard header shows Fix Plan and Sign out (the cards are the tool picker); every tool page and `/plan` show a **Tools** menu (a `<details>` dropdown: All tools, then every live tool grouped by category, the current one marked), Fix Plan and Sign out. The menu works without JS; `public/tech-session.js` adds Escape and click-outside to close it. Coming-soon tools are never in the menu. The sign-in screen shows "Back to home".
 - **Icons:** `public/assets/icons.svg` (a `<symbol>` sprite, presentation attributes only). The dashboard cards pick theirs with the `icon` field in the `TOOLS` registry (`public/tools.js`).
 
 ## Roadmap

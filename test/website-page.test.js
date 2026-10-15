@@ -19,7 +19,7 @@ test("/tools/website?t=… pre-fills the target but never scans until the form i
   const calls = [];
   Object.assign(globalThis, {
     document,
-    location: { search: "?t=acmedental.com" },
+    location: { search: "?t=example.com" },
     history: { replaceState() {} },
     fetch: async (path) => {
       calls.push(path);
@@ -31,10 +31,10 @@ test("/tools/website?t=… pre-fills the target but never scans until the form i
   for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r));
 
   assert.equal(els.tool.hidden, false, "signed in: the tool is shown");
-  assert.equal(els.target.value, "acmedental.com", "the field is pre-filled from ?t=");
+  assert.equal(els.target.value, "example.com", "the field is pre-filled from ?t=");
   assert.deepEqual(calls, ["/api/session"], "no scan was requested on page load");
 
   els["website-form"].listeners.submit({ preventDefault() {} });
   for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r));
-  assert.deepEqual(calls, ["/api/session", "/api/website?target=acmedental.com"], "the scan runs after the technician presses the button");
+  assert.deepEqual(calls, ["/api/session", "/api/website?target=example.com"], "the scan runs after the technician presses the button");
 });

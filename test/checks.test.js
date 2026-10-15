@@ -11,10 +11,10 @@ const google = { key: "google", name: "Google Workspace" };
 const microsoft = { key: "microsoft", name: "Microsoft 365" };
 
 test("normalizeDomain cleans up common inputs", () => {
-  assert.deepEqual(normalizeDomain("https://www.Acme-Accounting.com/contact?x=1"), { domain: "acme-accounting.com" });
-  assert.deepEqual(normalizeDomain("  jane@acme.co.uk "), { domain: "acme.co.uk" });
-  assert.deepEqual(normalizeDomain("acme.com."), { domain: "acme.com" });
-  assert.deepEqual(normalizeDomain("acme.com:8080"), { domain: "acme.com" });
+  assert.deepEqual(normalizeDomain("https://www.Shop.Example.com/contact?x=1"), { domain: "shop.example.com" });
+  assert.deepEqual(normalizeDomain("  jane@shop.example.com "), { domain: "shop.example.com" });
+  assert.deepEqual(normalizeDomain("example.com."), { domain: "example.com" });
+  assert.deepEqual(normalizeDomain("example.com:8080"), { domain: "example.com" });
 });
 
 test("normalizeDomain rejects IPs, single labels and internal names", () => {
@@ -26,10 +26,10 @@ test("normalizeDomain rejects IPs, single labels and internal names", () => {
 test("identifyProvider recognises the big platforms", () => {
   assert.equal(identifyProvider([{ exchange: "aspmx.l.google.com", priority: 1 }]).key, "google");
   assert.equal(identifyProvider([{ exchange: "smtp.google.com", priority: 1 }]).key, "google");
-  assert.equal(identifyProvider([{ exchange: "acme-com.mail.protection.outlook.com", priority: 0 }]).key, "microsoft");
+  assert.equal(identifyProvider([{ exchange: "example-com.mail.protection.outlook.com", priority: 0 }]).key, "microsoft");
   assert.equal(identifyProvider([{ exchange: "mx1.mail.secureserver.net", priority: 0 }]).key, "godaddy");
   assert.equal(identifyProvider([{ exchange: "mx0a-001.pphosted.com", priority: 0 }]).key, "proofpoint");
-  assert.equal(identifyProvider([{ exchange: "mail.acme.com", priority: 0 }]).key, "other");
+  assert.equal(identifyProvider([{ exchange: "mail.example.com", priority: 0 }]).key, "other");
   assert.equal(identifyProvider([]).key, "none");
 });
 
@@ -54,7 +54,7 @@ test("countSpfLookups follows includes recursively", async () => {
 });
 
 test("SPF: missing, duplicate, permissive and healthy records", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   let r = await checkSpf(d, fakeDeps({ txt: {} }), google);
   assert.equal(r.status, "fail");
 
@@ -74,7 +74,7 @@ test("SPF: missing, duplicate, permissive and healthy records", async () => {
 });
 
 test("SPF: too many DNS lookups fails", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   const includes = Array.from({ length: 11 }, (_, i) => `include:s${i}.example.net`).join(" ");
   const r = await checkSpf(d, fakeDeps({ txt: { [d]: [`v=spf1 ${includes} -all`] } }), { key: "other" });
   assert.equal(r.status, "fail");
@@ -82,25 +82,25 @@ test("SPF: too many DNS lookups fails", async () => {
 });
 
 test("DMARC: missing, monitor-only, enforced", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   assert.equal((await checkDmarc(d, fakeDeps())).status, "fail");
 
-  let r = await checkDmarc(d, fakeDeps({ txt: { [`_dmarc.${d}`]: ["v=DMARC1; p=none; rua=mailto:x@acme.com"] } }));
+  let r = await checkDmarc(d, fakeDeps({ txt: { [`_dmarc.${d}`]: ["v=DMARC1; p=none; rua=mailto:x@example.com"] } }));
   assert.equal(r.status, "warn");
   assert.match(r.summary, /monitor only/);
 
-  r = await checkDmarc(d, fakeDeps({ txt: { [`_dmarc.${d}`]: ["v=DMARC1; p=reject; rua=mailto:x@acme.com"] } }));
+  r = await checkDmarc(d, fakeDeps({ txt: { [`_dmarc.${d}`]: ["v=DMARC1; p=reject; rua=mailto:x@example.com"] } }));
   assert.equal(r.status, "pass");
   assert.equal(r.fix, null);
 
-  r = await checkDmarc(d, fakeDeps({ txt: { [`_dmarc.${d}`]: ["v=DMARC1; p=quarantine; pct=25; rua=mailto:x@acme.com"] } }));
+  r = await checkDmarc(d, fakeDeps({ txt: { [`_dmarc.${d}`]: ["v=DMARC1; p=quarantine; pct=25; rua=mailto:x@example.com"] } }));
   assert.equal(r.status, "warn");
 
-  assert.deepEqual(parseDmarc("v=DMARC1; p=reject; rua=mailto:a@b.com"), { v: "DMARC1", p: "reject", rua: "mailto:a@b.com" });
+  assert.deepEqual(parseDmarc("v=DMARC1; p=reject; rua=mailto:a@example.net"), { v: "DMARC1", p: "reject", rua: "mailto:a@example.net" });
 });
 
 test("DKIM: finds the provider selector, warns when missing", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   let r = await checkDkim(d, fakeDeps({ txt: { [`google._domainkey.${d}`]: [DKIM_RECORD] } }), google);
   assert.equal(r.status, "pass");
 
@@ -116,13 +116,13 @@ test("DKIM: finds the provider selector, warns when missing", async () => {
 });
 
 test("SSL: valid, invalid, expiring soon, unreachable", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   let r = await checkSsl(d, fakeDeps({ tls: { [d]: goodTls, [`www.${d}`]: goodTls } }));
   assert.equal(r.status, "pass");
 
   r = await checkSsl(d, fakeDeps({ tls: { [d]: goodTls, [`www.${d}`]: { ...goodTls, authorized: false, authorizationError: "ERR_TLS_CERT_ALTNAME_INVALID" } } }));
   assert.equal(r.status, "fail");
-  assert.match(r.summary, /www\.acme\.com/);
+  assert.match(r.summary, /www\.example\.com/);
 
   r = await checkSsl(d, fakeDeps({ tls: { [d]: { ...goodTls, validTo: "2026-10-08T00:00:00Z" } } }));
   assert.equal(r.status, "warn");
@@ -133,28 +133,28 @@ test("SSL: valid, invalid, expiring soon, unreachable", async () => {
 });
 
 test("HTTPS redirect", async () => {
-  assert.equal((await checkHttpsRedirect("acme.com", fakeDeps({ http: { ok: true, status: 301, location: "https://acme.com/" } }))).status, "pass");
-  assert.equal((await checkHttpsRedirect("acme.com", fakeDeps({ http: { ok: true, status: 200 } }))).status, "warn");
-  assert.equal((await checkHttpsRedirect("acme.com", fakeDeps({ http: { ok: true, status: 301, location: "http://www.acme.com/" } }))).status, "warn");
+  assert.equal((await checkHttpsRedirect("example.com", fakeDeps({ http: { ok: true, status: 301, location: "https://example.com/" } }))).status, "pass");
+  assert.equal((await checkHttpsRedirect("example.com", fakeDeps({ http: { ok: true, status: 200 } }))).status, "warn");
+  assert.equal((await checkHttpsRedirect("example.com", fakeDeps({ http: { ok: true, status: 301, location: "http://www.example.com/" } }))).status, "warn");
 });
 
 test("Domain registration: healthy, expiring, unlocked, unavailable", async () => {
-  let r = await checkDomainRegistration("acme.com", fakeDeps({ rdap: rdapData() }));
+  let r = await checkDomainRegistration("example.com", fakeDeps({ rdap: rdapData() }));
   assert.equal(r.status, "pass");
   assert.match(r.detail, /Example Registrar/);
 
-  r = await checkDomainRegistration("acme.com", fakeDeps({ rdap: rdapData({ expiry: "2026-10-15T00:00:00Z" }) }));
+  r = await checkDomainRegistration("example.com", fakeDeps({ rdap: rdapData({ expiry: "2026-10-15T00:00:00Z" }) }));
   assert.equal(r.status, "fail");
 
-  r = await checkDomainRegistration("acme.com", fakeDeps({ rdap: rdapData({ locked: false }) }));
+  r = await checkDomainRegistration("example.com", fakeDeps({ rdap: rdapData({ locked: false }) }));
   assert.equal(r.status, "warn");
 
   // Registry unreachable: "couldn't verify", which is excluded from the score but shown
-  r = await checkDomainRegistration("acme.com", fakeDeps());
+  r = await checkDomainRegistration("example.com", fakeDeps());
   assert.equal(r.status, "unknown");
 
   // Extension with no public RDAP service: not applicable
-  r = await checkDomainRegistration("acme.co.xx", fakeDeps({ rdap: { ok: false, unsupported: true, error: "no RDAP" } }));
+  r = await checkDomainRegistration("example.co.xx", fakeDeps({ rdap: { ok: false, unsupported: true, error: "no RDAP" } }));
   assert.equal(r.status, "info");
   assert.equal(r.weight, 0);
 });
@@ -167,17 +167,17 @@ test("scoring and grades", () => {
 });
 
 test("runScan: a well-run Google Workspace office gets an A", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   const report = await runScan(d, fakeDeps({
     mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
     txt: {
       [d]: ["v=spf1 include:_spf.google.com ~all"],
-      [`_dmarc.${d}`]: ["v=DMARC1; p=reject; rua=mailto:dmarc@acme.com"],
+      [`_dmarc.${d}`]: ["v=DMARC1; p=reject; rua=mailto:dmarc@example.com"],
       [`google._domainkey.${d}`]: [DKIM_RECORD],
       "_spf.google.com": ["v=spf1 include:_netblocks.google.com ~all"],
     },
     tls: { [d]: goodTls, [`www.${d}`]: goodTls },
-    http: { ok: true, status: 301, location: "https://acme.com/" },
+    http: { ok: true, status: 301, location: "https://example.com/" },
     rdap: rdapData(),
   }));
   assert.equal(report.grade, "A");
@@ -189,7 +189,7 @@ test("runScan: a well-run Google Workspace office gets an A", async () => {
 });
 
 test("runScan: a neglected office gets an F with a fix list", async () => {
-  const d = "oldoffice.com";
+  const d = "old.example.net";
   const report = await runScan(d, fakeDeps({
     mx: { [d]: [{ exchange: "mx1.mail.secureserver.net", priority: 0 }] },
     http: { ok: true, status: 200 },
@@ -202,7 +202,7 @@ test("runScan: a neglected office gets an F with a fix list", async () => {
 });
 
 test("runScan: a check that throws becomes a 'couldn't verify' row, not a crash", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   const deps = fakeDeps({ mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] } });
   deps.resolver.resolveTxt = async () => {
     throw Object.assign(new Error("SERVFAIL"), { code: "ESERVFAIL" });
@@ -218,7 +218,7 @@ test("runScan: a check that throws becomes a 'couldn't verify' row, not a crash"
 /* ---- Regression tests from the live 20-domain validation run (2026-10-01) ---- */
 
 test("live bug: SPF that authorises Google via _netblocks (vercel.com pattern) is not flagged", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   const r = await checkSpf(d, fakeDeps({ txt: {
     [d]: ["v=spf1 include:_netblocks.google.com include:sendgrid.net ~all"],
     "_netblocks.google.com": ["v=spf1 ip4:74.125.0.0/16 ~all"],
@@ -228,17 +228,17 @@ test("live bug: SPF that authorises Google via _netblocks (vercel.com pattern) i
 });
 
 test("live bug: Microsoft 365 authorised through a nested include (microsoft.com / godaddy.com pattern)", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   const r = await checkSpf(d, fakeDeps({ txt: {
-    [d]: ["v=spf1 include:_spf-a.acme.com -all"],
-    "_spf-a.acme.com": ["v=spf1 include:spf.protection.outlook.com -all"],
+    [d]: ["v=spf1 include:_spf-a.example.com -all"],
+    "_spf-a.example.com": ["v=spf1 include:spf.protection.outlook.com -all"],
     "spf.protection.outlook.com": ["v=spf1 ip4:40.92.0.0/15 -all"],
   } }), microsoft);
   assert.equal(r.status, "pass");
 });
 
 test("SPF still warns when the platform is genuinely missing from the whole include tree", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   const r = await checkSpf(d, fakeDeps({ txt: { [d]: ["v=spf1 include:mailgun.org ~all"], "mailgun.org": ["v=spf1 ip4:1.2.3.4 -all"] } }), microsoft);
   assert.equal(r.status, "warn");
 });
@@ -257,16 +257,16 @@ test("live bug: null MX (example.com) is 'no email', and DKIM is not applicable"
 });
 
 test("live bug: custom DKIM selector with enforced DMARC (google.com pattern) is 'couldn't verify', not a warning", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   const report = await runScan(d, fakeDeps({
     mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
-    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:74.125.0.0/16 ~all"], [`_dmarc.${d}`]: ["v=DMARC1; p=reject; rua=mailto:x@acme.com"] },
+    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:74.125.0.0/16 ~all"], [`_dmarc.${d}`]: ["v=DMARC1; p=reject; rua=mailto:x@example.com"] },
   }));
   assert.equal(report.checks.find((c) => c.id === "dkim").status, "unknown");
 });
 
 test("missing DKIM with no DMARC enforcement is still a warning", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   const report = await runScan(d, fakeDeps({
     mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
     txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], [`_dmarc.${d}`]: ["v=DMARC1; p=none"] },
@@ -277,12 +277,12 @@ test("missing DKIM with no DMARC enforcement is still a warning", async () => {
 test("live bug: enterprise email filters are named, not called 'self-hosted'", () => {
   assert.equal(identifyProvider([{ exchange: "mx1.intuit.iphmx.com", priority: 5 }]).key, "cisco");
   assert.equal(identifyProvider([{ exchange: "mxa.global.inbound.cf-emailsecurity.net", priority: 5 }]).key, "cloudflare");
-  assert.equal(identifyProvider([{ exchange: "mail.acme.com", priority: 5 }]).name, "Other email provider");
+  assert.equal(identifyProvider([{ exchange: "mail.example.com", priority: 5 }]).name, "Other email provider");
 });
 
 test("grade is withheld when less than half the weighted checks could be verified", async () => {
-  const d = "acme.com";
-  const deps = fakeDeps({ mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] }, tls: { [d]: goodTls }, http: { ok: true, status: 301, location: "https://acme.com/" } });
+  const d = "example.com";
+  const deps = fakeDeps({ mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] }, tls: { [d]: goodTls }, http: { ok: true, status: 301, location: "https://example.com/" } });
   deps.resolver.resolveTxt = async () => { throw Object.assign(new Error("SERVFAIL"), { code: "ESERVFAIL" }); };
   const report = await runScan(d, deps);
   assert.equal(report.grade, null);
@@ -327,12 +327,12 @@ test("fetchRdap asks the registry directly, then falls back to rdap.org", async 
     const [status, body] = hit ? hit[1] : [404, {}];
     return { ok: status < 400, status, json: async () => body };
   };
-  let r = await fetchRdap("acme.com", { fetchImpl: fake({ "https://rdap.verisign.com/com/v1/domain/acme.com": [200, { ldhName: "ACME.COM" }] }) });
+  let r = await fetchRdap("example.com", { fetchImpl: fake({ "https://rdap.verisign.com/com/v1/domain/example.com": [200, { ldhName: "EXAMPLE.COM" }] }) });
   assert.equal(r.ok, true);
-  assert.equal(calls[0], "https://rdap.verisign.com/com/v1/domain/acme.com");
+  assert.equal(calls[0], "https://rdap.verisign.com/com/v1/domain/example.com");
 
   calls.length = 0;
-  r = await fetchRdap("acme.com", { fetchImpl: fake({ "https://rdap.verisign.com": [503, {}], "https://rdap.org/": [200, { ldhName: "ACME.COM" }] }) });
+  r = await fetchRdap("example.com", { fetchImpl: fake({ "https://rdap.verisign.com": [503, {}], "https://rdap.org/": [200, { ldhName: "EXAMPLE.COM" }] }) });
   assert.equal(r.ok, true);
   assert.deepEqual(calls.map((u) => new URL(u).host), ["rdap.verisign.com", "rdap.org"]);
 });

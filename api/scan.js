@@ -3,7 +3,7 @@ import { runScan } from "../lib/scan.js";
 import { authorize, send } from "../lib/private-api.js";
 import { audit } from "../lib/audit.js";
 
-// Private endpoint (technician session): GET /api/scan?domain=acme.com → the full email & domain report.
+// Private endpoint (technician session): GET /api/scan?domain=example.com → the full email & domain report.
 // The public lander uses /api/preview instead. Rate limiting is the durable per-session limit in
 // authorize(); the old in-memory per-IP limiter is gone.
 export default async function handler(req, res) {

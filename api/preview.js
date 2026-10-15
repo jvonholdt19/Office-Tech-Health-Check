@@ -1,4 +1,4 @@
-// Public endpoint for the lander: GET /api/preview?domain=acme.com → { domain, grade, items }.
+// Public endpoint for the lander: GET /api/preview?domain=example.com → { domain, grade, items }.
 // No sign-in, so it is protected by durable limits in the shared store (Supabase rate_limit_hit),
 // never an in-memory fallback: if the store is unavailable the endpoint fails closed with 503.
 //   per client:  5 per 10 minutes and 20 per day (IPv4 address, or the IPv6 /64 prefix)

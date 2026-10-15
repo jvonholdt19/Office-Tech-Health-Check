@@ -6,7 +6,7 @@ import { buildPlan } from "../lib/plan.js";
 import { runScan } from "../lib/scan.js";
 import { fakeDeps } from "./fakes.js";
 
-const d = "acme.com";
+const d = "example.com";
 const LEGACY = [
   { exchange: "aspmx.l.google.com", priority: 1 },
   { exchange: "alt1.aspmx.l.google.com", priority: 5 },
@@ -42,8 +42,8 @@ test("Google mixed with other mail servers warns, and the plan never deletes an 
 });
 
 test("lookalike hosts are not Google", () => {
-  for (const host of ["evilgoogle.com.attacker.net", "smtp.google.com.attacker.net", "aspmx.l.google.com.evil.example", "alt9.aspmx.l.google.com", "mx.google.com", "aspmx6.googlemail.com"]) {
+  for (const host of ["evilgoogle.com.example.net", "smtp.google.com.example.net", "aspmx.l.google.com.evil.example", "alt9.aspmx.l.google.com", "mx.google.com", "aspmx6.googlemail.com"]) {
     assert.notEqual(identifyProvider([{ exchange: host, priority: 1 }]).key, "google", host);
   }
-  assert.equal(googleMxSetup([{ exchange: "mail.acme.com", priority: 1 }]), null);
+  assert.equal(googleMxSetup([{ exchange: "mail.example.com", priority: 1 }]), null);
 });

@@ -1,5 +1,5 @@
 ;;
-;; Domain:     acme.com.
+;; Domain:     example.com.
 ;; Exported:   2026-10-08 15:04:11
 ;;
 ;; This file is intended for use for informational and archival
@@ -24,24 +24,24 @@
 ;; Cloudflare Proxy Type: proxied = "cf-proxied:true", not proxied = "cf-proxied:false"
 
 ;; SOA Record
-acme.com	3600	IN	SOA	lars.ns.cloudflare.com. dns.cloudflare.com. 2051234567 10000 2400 604800 3600
+example.com	3600	IN	SOA	lars.ns.cloudflare.com. dns.cloudflare.com. 2051234567 10000 2400 604800 3600
 
 ;; NS Records
-acme.com.	86400	IN	NS	lars.ns.cloudflare.com.
-acme.com.	86400	IN	NS	jo.ns.cloudflare.com.
+example.com.	86400	IN	NS	lars.ns.cloudflare.com.
+example.com.	86400	IN	NS	jo.ns.cloudflare.com.
 
 ;; A Records
-acme.com.	1	IN	A	192.0.2.10 ; cf_tags=cf-proxied:true
+example.com.	1	IN	A	192.0.2.10 ; cf_tags=cf-proxied:true
 
 ;; CNAME Records
-www.acme.com.	1	IN	CNAME	acme.com. ; cf_tags=cf-proxied:true
-mail2025._domainkey.acme.com.	1	IN	CNAME	mail2025.dkim.example-esp.net. ; cf_tags=cf-proxied:false
+www.example.com.	1	IN	CNAME	example.com. ; cf_tags=cf-proxied:true
+mail2025._domainkey.example.com.	1	IN	CNAME	mail2025.dkim.esp.example.net. ; cf_tags=cf-proxied:false
 
 ;; MX Records
-acme.com.	1	IN	MX	1 smtp.google.com.
+example.com.	1	IN	MX	1 smtp.google.com.
 
 ;; TXT Records
-acme.com.	1	IN	TXT	"google-site-verification=abc123"
-acme.com.	1	IN	TXT	"v=spf1 include:sendgrid.net ~all"
-_dmarc.acme.com.	1	IN	TXT	"v=DMARC1; p=none; rua=mailto:reports@vendor.example"
-custom2024._domainkey.acme.com.	1	IN	TXT	"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr70UHT8KFBm54FnKShc+vvr7AK90xtOQUSfp8oFNC9leC70r6eMvxr0uvmXjlCg4z0WA07vtRW6ig6KvoIPRhEE+WbKkZutQzqMxtKYOvCtnV1WKeFthgKGVAw7o2/LcionXxWXLKfC5JqqM/ZeQ5RBlzDm3301F4GKBqg1QxUvj3oRYuGPxUvMq8oowuv/Fz" "lGDhUcT6Tz43MLW5rZeyjuuLOhqIKV+ds4AqfF9ZsUCHSFZDeOgphtFxmVFlz74rYJbjQfARLuh8vC8vQHo87DTri5lzvB4AddGYUQIBC8X/qULELa57rRmoNCtWTOwUWQUALvT8ylGamFC5it8uwIDAQAB"
+example.com.	1	IN	TXT	"google-site-verification=abc123"
+example.com.	1	IN	TXT	"v=spf1 include:sendgrid.net ~all"
+_dmarc.example.com.	1	IN	TXT	"v=DMARC1; p=none; rua=mailto:reports@vendor.example"
+custom2024._domainkey.example.com.	1	IN	TXT	"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr70UHT8KFBm54FnKShc+vvr7AK90xtOQUSfp8oFNC9leC70r6eMvxr0uvmXjlCg4z0WA07vtRW6ig6KvoIPRhEE+WbKkZutQzqMxtKYOvCtnV1WKeFthgKGVAw7o2/LcionXxWXLKfC5JqqM/ZeQ5RBlzDm3301F4GKBqg1QxUvj3oRYuGPxUvMq8oowuv/Fz" "lGDhUcT6Tz43MLW5rZeyjuuLOhqIKV+ds4AqfF9ZsUCHSFZDeOgphtFxmVFlz74rYJbjQfARLuh8vC8vQHo87DTri5lzvB4AddGYUQIBC8X/qULELa57rRmoNCtWTOwUWQUALvT8ylGamFC5it8uwIDAQAB"

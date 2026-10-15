@@ -52,6 +52,27 @@ export function showSignedInChrome(on) {
 }
 
 /**
+ * The header's Tools menu (a <details>, markup in scripts/site-chrome.js) opens and closes without
+ * JS. With JS: Escape closes it and puts focus back on "Tools"; a click or focus outside closes it.
+ */
+export function initToolsMenu(doc = document) {
+  const menu = typeof doc.querySelector === "function" ? doc.querySelector("details.tools-menu") : null;
+  if (!menu) return;
+  const close = () => {
+    menu.open = false;
+  };
+  doc.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !menu.open) return;
+    close();
+    menu.querySelector("summary").focus();
+  });
+  doc.addEventListener("click", (e) => menu.open && !menu.contains(e.target) && close());
+  doc.addEventListener("focusin", (e) => menu.open && !menu.contains(e.target) && close());
+}
+
+if (typeof document !== "undefined") initToolsMenu(document);
+
+/**
  * Wire up the sign-in gate. The page provides #gate, #gate-form, #access-code, #gate-error,
  * #lock-btn and a content element (`contentId`) that is shown only while signed in.
  * `onSignedIn` runs every time the content is unlocked.

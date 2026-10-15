@@ -25,11 +25,25 @@
         </span>
       </a>
       <a class="header-home" id="gate-home" href="/">Back to home</a>
-      <nav class="tech-nav" id="tech-nav" aria-label="Tools" hidden>
-        <a href="/tools">Tools</a>
-        <a href="/tools/email">Email</a>
-        <a href="/tools/website">Website</a>
-        <a href="/tools/domain" aria-current="page">Domain</a>
+      <nav class="tech-nav" id="tech-nav" aria-label="Technician" hidden>
+        <details class="tools-menu">
+          <summary>Tools</summary>
+          <div class="tools-menu-panel">
+            <a class="tools-menu-all" href="/tools">All tools</a>
+            <p class="tools-menu-heading" id="tools-menu-email">Email</p>
+            <ul aria-labelledby="tools-menu-email">
+              <li><a href="/tools/email">Email Security Check</a></li>
+            </ul>
+            <p class="tools-menu-heading" id="tools-menu-web">Web</p>
+            <ul aria-labelledby="tools-menu-web">
+              <li><a href="/tools/website">Website Security Check</a></li>
+            </ul>
+            <p class="tools-menu-heading" id="tools-menu-domain">Domain</p>
+            <ul aria-labelledby="tools-menu-domain">
+              <li><a href="/tools/domain" aria-current="page">Domain Health</a></li>
+            </ul>
+          </div>
+        </details>
         <a href="/plan">Fix Plan</a>
         <button type="button" class="nav-signout" id="lock-btn" hidden>Sign out</button>
       </nav>
@@ -56,7 +70,7 @@
       <p class="lede">Renewal date, transfer lock, nameservers, SOA, MX, CAA, DNSSEC, email authentication and dangling CNAMEs, from public DNS and registry (RDAP) data only. Nothing is sent to the website.</p>
       <form id="domain-form" class="scan-form no-print">
         <label for="target" class="sr-only">Domain</label>
-        <input id="target" type="text" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="clientbusiness.com" required>
+        <input id="target" type="text" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="example.com" required>
         <button type="submit" id="domain-btn">Check domain</button>
       </form>
       <p class="form-error" id="domain-error" role="alert" hidden></p>

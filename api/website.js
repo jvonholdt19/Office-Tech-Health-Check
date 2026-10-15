@@ -2,7 +2,7 @@ import { parseWebsiteTarget, runWebsiteScan } from "../lib/website-scan.js";
 import { authorize, send, retryAfter } from "../lib/private-api.js";
 import { audit } from "../lib/audit.js";
 
-// Private endpoint: GET /api/website?target=acme.com → passive Website Security Check report.
+// Private endpoint: GET /api/website?target=example.com → passive Website Security Check report.
 // Technician session + per-session rate limit come from authorize(); on top of that, any one site can
 // be checked at most 3 times a minute (across all sessions), so the tool can't be used to hammer it.
 export const TARGET_LIMIT = { max: 3, windowSeconds: 60 };

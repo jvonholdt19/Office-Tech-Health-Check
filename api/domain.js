@@ -3,7 +3,7 @@ import { runDomainScan } from "../lib/domain-scan.js";
 import { authorize, send, retryAfter } from "../lib/private-api.js";
 import { audit } from "../lib/audit.js";
 
-// Private endpoint: GET /api/domain?domain=acme.com → Domain Health report (passive DNS + RDAP).
+// Private endpoint: GET /api/domain?domain=example.com → Domain Health report (passive DNS + RDAP).
 // Technician session + per-session limit from authorize(); any one domain at most 3 times a minute.
 export const DOMAIN_LIMIT = { max: 3, windowSeconds: 60 };
 

@@ -6,7 +6,8 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PAGES, NAV, header, footer, HEADER_RE, FOOTER_RE } from "../scripts/site-chrome.js";
+import { PAGES, header, footer, menuGroups, HEADER_RE, FOOTER_RE } from "../scripts/site-chrome.js";
+import { TOOLS, CATEGORIES } from "../public/tools.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const read = (p) => readFileSync(join(root, p), "utf8");
@@ -20,7 +21,12 @@ const walk = (dir, re, out = []) => {
 };
 const HTML = walk(join(root, "public"), /\.html$/);
 const PAGE_JS = walk(join(root, "public"), /\.js$/);
-const TECH = Object.entries(PAGES).filter(([, p]) => p.kind === "tech").map(([f]) => f);
+const TECH = Object.entries(PAGES).filter(([, p]) => p.kind !== "lander").map(([f]) => f);
+const WITH_MENU = Object.entries(PAGES).filter(([, p]) => p.kind === "tool" || p.kind === "plan").map(([f]) => f);
+const LIVE = TOOLS.filter((t) => t.status === "live" && t.href);
+const SOON = TOOLS.filter((t) => t.status !== "live");
+const headerOf = (f) => read(f).match(HEADER_RE)[0];
+const menuOf = (f) => headerOf(f).match(/<details class="tools-menu">[\s\S]*?<\/details>/)?.[0];
 
 /* ------------------------------ shared chrome ------------------------------ */
 
@@ -52,15 +58,13 @@ test("every page carries the canonical header and footer (only the page kind and
   }
 });
 
-test("technician pages: the nav (with #lock-btn) starts hidden, 'Back to home' shows on the gate, the current page is marked", () => {
-  assert.deepEqual(NAV.map(([, label]) => label), ["Tools", "Email", "Website", "Domain", "Fix Plan"], "Josh: order and labels");
+test("technician pages: the nav (with #lock-btn) starts hidden and 'Back to home' shows on the gate", () => {
   for (const f of TECH) {
     const html = read(f);
-    assert.match(html, /<nav class="tech-nav" id="tech-nav" aria-label="Tools" hidden>/, f);
+    assert.match(html, /<nav class="tech-nav" id="tech-nav" aria-label="Technician" hidden>/, f);
     assert.match(html, /<button type="button" class="nav-signout" id="lock-btn" hidden>Sign out<\/button>/, f);
     assert.match(html, /<a class="header-home" id="gate-home" href="\/">Back to home<\/a>/, f);
-    assert.equal(html.match(/aria-current="page"/g)?.length, 1, `${f}: exactly one current page`);
-    assert.match(html, new RegExp(`<a href="${PAGES[f].current}" aria-current="page">`), f);
+    assert.match(headerOf(f), /<a href="\/plan"( aria-current="page")?>Fix Plan<\/a>\n\s+<button type="button" class="nav-signout"/, `${f}: Fix Plan, then Sign out`);
     assert.ok(!html.includes("Tech sign in"), `${f}: never "Tech sign in" on the gate`);
     assert.ok(!/header-links|header-link|back-link|← All tools/.test(html), `${f}: old header links are gone`);
     assert.match(html, /<header class="site-header no-print">/, f);
@@ -69,10 +73,90 @@ test("technician pages: the nav (with #lock-btn) starts hidden, 'Back to home' s
     for (const id of ["gate", "gate-form", "access-code", "gate-error"]) assert.match(html, new RegExp(`id="${id}"`), `${f}: #${id}`);
     assert.match(html, /<p class="form-error" id="gate-error" role="alert" hidden><\/p>/, f);
     assert.match(html, /<label for="access-code">/, `${f}: the access code has a visible label`);
+    // No per-tool buttons in the header bar: tools are reached through the menu (or the dashboard cards).
+    const bar = headerOf(f).replace(/<details class="tools-menu">[\s\S]*?<\/details>/, "");
+    for (const t of LIVE) assert.ok(!bar.includes(`href="${t.href}"`), `${f}: no ${t.name} button in the header bar`);
   }
   const lander = read("public/index.html");
-  assert.ok(!lander.includes('id="tech-nav"') && !lander.includes('id="lock-btn"'));
+  assert.ok(!lander.includes('id="tech-nav"') && !lander.includes('id="lock-btn"') && !lander.includes("tools-menu"));
   assert.match(lander, /<a class="l-btn l-btn-ghost signin-btn" href="\/tools">Tech sign in<\/a>/);
+});
+
+test("dashboard header: only Fix Plan and Sign out, no Tools menu (the cards are the tool picker)", () => {
+  const h = headerOf("public/tools.html");
+  assert.equal(PAGES["public/tools.html"].kind, "dashboard");
+  assert.ok(!h.includes("tools-menu"), "no Tools menu on the dashboard");
+  const nav = h.match(/<nav [^>]*>([\s\S]*?)<\/nav>/)[1];
+  assert.deepEqual([...nav.matchAll(/<(a|button)\b[^>]*>([^<]*)</g)].map((m) => m[2]), ["Fix Plan", "Sign out"]);
+  assert.ok(!h.includes('aria-current="page"'));
+  // The dashboard script renders every tool from the same registry.
+  assert.match(read("public/tools.html"), /<script src="\/dashboard\.js" type="module"><\/script>/);
+  assert.match(read("public/dashboard.js"), /import \{ TOOLS \} from "\.\/tools\.js";/);
+  assert.match(read("public/dashboard.js"), /TOOLS\.map\(card\)/);
+});
+
+test("tool pages and /plan: a Tools menu with All tools, then every live tool grouped by category, current one marked", () => {
+  assert.ok(LIVE.length >= 3 && SOON.length >= 1);
+  for (const t of TOOLS) assert.ok(CATEGORIES.includes(t.category), `${t.id}: category ${t.category}`);
+  for (const f of WITH_MENU) {
+    const menu = menuOf(f);
+    assert.ok(menu, `${f}: has the Tools menu`);
+    assert.match(menu, /^<details class="tools-menu">\n\s+<summary>Tools<\/summary>/, `${f}: a <details>/<summary> menu, no JS needed`);
+    const links = [...menu.matchAll(/<a\b[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/g)].map((m) => [m[1], m[2]]);
+    assert.deepEqual(links[0], ["/tools", "All tools"], `${f}: All tools first`);
+    // Exactly the live tools, in category order, each under its category heading; never a coming-soon tool.
+    const expected = CATEGORIES.flatMap((c) => LIVE.filter((t) => t.category === c)).map((t) => [t.href, t.name]);
+    assert.deepEqual(links.slice(1), expected, `${f}: every live tool, grouped`);
+    for (const t of SOON) assert.ok(!menu.includes(t.name), `${f}: ${t.name} (coming soon) is not in the menu`);
+    const headings = [...menu.matchAll(/<p class="tools-menu-heading" id="([^"]+)">([^<]+)<\/p>\n\s+<ul aria-labelledby="([^"]+)">/g)];
+    assert.deepEqual(headings.map((m) => m[2]), menuGroups().map((g) => g.category), `${f}: category headings`);
+    for (const m of headings) assert.equal(m[1], m[3], `${f}: each list is labelled by its heading`);
+    const page = PAGES[f];
+    const currentLinks = [...headerOf(f).matchAll(/<a href="([^"]+)" aria-current="page">/g)].map((m) => m[1]);
+    assert.deepEqual(currentLinks, [page.kind === "plan" ? "/plan" : page.current], `${f}: exactly one current item`);
+  }
+  // Every live tool has its own page, registered as a tool page for its href (so it gets the menu with itself marked).
+  for (const t of LIVE) {
+    const entry = Object.entries(PAGES).find(([, p]) => p.kind === "tool" && p.current === t.href);
+    assert.ok(entry, `${t.href} is registered in scripts/site-chrome.js`);
+    assert.equal(entry[0], `public${t.href}.html`);
+  }
+});
+
+test("menuGroups: only live tools, categories in order, empty categories dropped, unknown categories rejected", () => {
+  const tools = [
+    { id: "a", category: "Office", status: "live", href: "/tools/a", name: "A" },
+    { id: "b", category: "Email", status: "live", href: "/tools/b", name: "B" },
+    { id: "c", category: "Email", status: "soon", href: null, name: "C" },
+    { id: "d", category: "Web", status: "soon", href: null, name: "D" },
+  ];
+  assert.deepEqual(menuGroups(tools).map((g) => [g.category, g.tools.map((t) => t.id)]), [["Email", ["b"]], ["Office", ["a"]]]);
+  assert.throws(() => menuGroups([{ id: "x", category: "Misc", status: "live", href: "/tools/x", name: "X" }]), /unknown category/);
+});
+
+test("Tools menu: Escape closes it and returns focus to Tools; a click or focus outside closes it", async () => {
+  const listeners = {};
+  const summary = { focused: false, focus() { this.focused = true; } };
+  const inside = {};
+  const menu = { open: true, querySelector: () => summary, contains: (el) => el === inside || el === summary };
+  const doc = { querySelector: (sel) => (sel === "details.tools-menu" ? menu : null), addEventListener: (t, fn) => (listeners[t] = fn) };
+  globalThis.document = { getElementById: () => null };
+  const { initToolsMenu } = await import(`../public/tech-session.js?menu=${Date.now()}`);
+  initToolsMenu(doc);
+  listeners.click({ target: inside });
+  assert.equal(menu.open, true, "a click inside keeps it open");
+  listeners.keydown({ key: "Enter" });
+  assert.equal(menu.open, true);
+  listeners.keydown({ key: "Escape" });
+  assert.equal(menu.open, false);
+  assert.equal(summary.focused, true, "focus goes back to Tools");
+  menu.open = true;
+  listeners.click({ target: {} });
+  assert.equal(menu.open, false, "a click outside closes it");
+  menu.open = true;
+  listeners.focusin({ target: {} });
+  assert.equal(menu.open, false, "tabbing out closes it");
+  initToolsMenu({ getElementById: () => null }); // pages without the menu (and fake DOMs) are fine
 });
 
 test("signing in shows the nav and hides 'Back to home'; signing out reverses it (tech-session.js)", async () => {
@@ -206,5 +290,17 @@ test("CSS budget: under 40 KB of CSS per page", () => {
     const sheets = [...read(f).matchAll(/<link rel="stylesheet" href="\/([^"]+)">/g)].map((m) => m[1]);
     const bytes = sheets.reduce((n, s) => n + Buffer.byteLength(read(`public/${s}`)), 0);
     assert.ok(bytes < 40_000, `${f}: ${bytes} bytes of CSS`);
+  }
+});
+
+/* ------------------------------ example domains ------------------------------ */
+
+test("examples, tests and docs use reserved example domains, not real-looking business domains", () => {
+  const files = [...["api", "lib", "public", "scripts", "test"].flatMap((d) => walk(join(root, d), /\.(js|html|css|json|txt|csv|md)$/)), "README.md"];
+  const business = /\b(acme(dental|accounting)?|otherdental|oldoffice|yourbusiness|clientbusiness|r53co|csvco)\.(com|co)\b|-dental\.com\b|tinywidgets\.io/i;
+  for (const f of files) {
+    if (f === "test/branding.test.js") continue;
+    const m = read(f).match(business);
+    assert.ok(!m, `${f}: "${m && m[0]}" (use example.com, example.net or example.org)`);
   }
 });

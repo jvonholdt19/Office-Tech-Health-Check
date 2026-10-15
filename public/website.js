@@ -75,7 +75,7 @@ $("website-form").addEventListener("submit", (e) => {
 
 initGate({
   contentId: "tool",
-  // ?t=acme.com only pre-fills the field. A scan never starts from a link: the technician has to
+  // ?t=example.com only pre-fills the field. A scan never starts from a link: the technician has to
   // press "Check website" (so a crafted URL can't make a signed-in technician scan a site).
   onSignedIn: () => {
     const t = new URLSearchParams(location.search).get("t");
