@@ -1,0 +1,19 @@
+/* Public lander. Uses the variables from styles.css. */
+.brand-text { display: flex; flex-direction: column; line-height: 1.2; }
+.brand-sub { font-size: 12px; font-weight: 500; color: var(--muted); }
+.signin-btn { text-decoration: none; white-space: nowrap; }
+.topics { margin: 0; padding-left: 20px; max-width: 680px; color: var(--text); }
+.topics li { margin: 6px 0; }
+.preview { padding: 8px 16px 56px; }
+.preview h2 { margin: 0 0 6px; font-size: 22px; }
+.preview-note { color: var(--muted); margin: 0 0 16px; max-width: 640px; }
+.loading-line { display: flex; align-items: center; gap: 10px; color: var(--muted); margin-top: 16px; }
+.spinner.small { width: 18px; height: 18px; border-width: 2px; }
+.preview-result { margin-top: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); max-width: 640px; }
+.preview-head { display: flex; gap: 16px; align-items: center; }
+.preview-head .grade { width: 64px; height: 64px; font-size: 32px; border-radius: 16px; flex: none; }
+.preview-limited { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+.preview-items { list-style: none; margin: 16px 0; padding: 0; display: grid; gap: 8px; }
+.preview-items li { display: flex; gap: 10px; align-items: center; }
+.preview-cta { margin: 0; padding-top: 14px; border-top: 1px solid var(--border); font-weight: 600; }
+.preview-cta a, .site-footer a { color: var(--accent); }

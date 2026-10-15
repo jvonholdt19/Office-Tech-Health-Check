@@ -20,6 +20,12 @@
     },
     "api/website.js": {
       "maxDuration": 30
+    },
+    "api/preview.js": {
+      "maxDuration": 30
+    },
+    "api/domain.js": {
+      "maxDuration": 30
     }
   },
   "headers": [
@@ -41,6 +47,15 @@
         {
           "key": "Content-Security-Policy",
           "value": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'"
+        }
+      ]
+    },
+    {
+      "source": "/",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
         }
       ]
     },
@@ -101,6 +116,32 @@
     {
       "source": "/api/plan/confirm",
       "destination": "/api/plan-confirm"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "d",
+          "value": "(?<d>[A-Za-z0-9.-]+)"
+        }
+      ],
+      "destination": "/tools/email?d=:d",
+      "permanent": false
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "domain",
+          "value": "(?<domain>[A-Za-z0-9.-]+)"
+        }
+      ],
+      "destination": "/tools/email?d=:domain",
+      "permanent": false
     }
   ]
 }

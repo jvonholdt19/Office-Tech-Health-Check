@@ -9,4 +9,4 @@ Zero-dependency Node app: static page in `public/`, Vercel function in `api/scan
    where possible (`npm run dev`, `npm run scan -- <domain>`). Push the branch so Vercel builds
    a preview deployment.
 3. Stop and wait. Merge or push to `main` only when the owner explicitly asks.
-   `main` is production: every push to it deploys to office-tech-health-check.vercel.app.
+   `main` is production: every push to it deploys to officetech.nwimpm.com (Vercel project `office-tech-health-check`).

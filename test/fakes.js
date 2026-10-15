@@ -1,5 +1,5 @@
 // Fake network layer so tests never touch real DNS or websites.
-export function fakeResolver({ mx = {}, txt = {}, ns = {}, a = {}, aaaa = {} } = {}) {
+export function fakeResolver({ mx = {}, txt = {}, ns = {}, a = {}, aaaa = {}, soa = {}, caa = {}, cname = {} } = {}) {
   const notFound = () => Object.assign(new Error("not found"), { code: "ENOTFOUND" });
   return {
     async resolveMx(name) {
@@ -17,6 +17,18 @@ export function fakeResolver({ mx = {}, txt = {}, ns = {}, a = {}, aaaa = {} } =
     async resolve6(name) {
       if (!(name in aaaa)) throw notFound();
       return aaaa[name];
+    },
+    async resolveSoa(name) {
+      if (!(name in soa)) throw Object.assign(new Error("no data"), { code: "ENODATA" });
+      return soa[name];
+    },
+    async resolveCaa(name) {
+      if (!(name in caa)) throw Object.assign(new Error("no data"), { code: "ENODATA" });
+      return caa[name];
+    },
+    async resolveCname(name) {
+      if (!(name in cname)) throw Object.assign(new Error("no data"), { code: "ENODATA" });
+      return cname[name];
     },
     async resolveTxt(name) {
       if (!(name in txt)) throw notFound();

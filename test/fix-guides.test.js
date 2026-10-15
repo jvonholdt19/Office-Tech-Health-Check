@@ -9,6 +9,9 @@ import { runWebsiteScan } from "../lib/website-scan.js";
 import { fakeResolver, NOW } from "./fakes.js";
 
 const PLATFORMS = ["cloudflare", "wordpress", "apache", "nginx", "iis", "builders"];
+// Website Security Check guides; Domain Health guides (tool: "domain") use registrar/DNS platforms
+// and are covered in test/domain-health.test.js.
+const WEBSITE_GUIDES = Object.entries(FIX_GUIDES).filter(([, g]) => g.tool !== "domain");
 const page = (headers = {}, body = "", url = "https://acmedental.com/", status = 200) => ({ ok: true, url, status, headers, body, truncated: false });
 const chain = (responses, extra = {}) => ({ ok: true, responses, final: responses.at(-1), ...extra });
 const tls = (o) => [{ host: "acmedental.com", ok: true, authorized: true, validTo: new Date(NOW.getTime() + 90 * 864e5).toISOString(), protocol: "TLSv1.3", ...o }];
@@ -81,7 +84,7 @@ test("cross-check: every check id in the source that can warn or fail has a guid
 });
 
 test("every guide has the required fields, https sources and all six platforms", () => {
-  for (const [id, g] of Object.entries(FIX_GUIDES)) {
+  for (const [id, g] of WEBSITE_GUIDES) {
     for (const k of ["why", "message", "verify"]) assert.ok(typeof g[k] === "string" && g[k].length > 20, `${id}.${k}`);
     assert.ok(typeof g.time === "string" && /\d/.test(g.time), `${id}.time`);
     assert.ok(["easy", "moderate", "advanced"].includes(g.difficulty), `${id}.difficulty`);
@@ -109,7 +112,7 @@ test("risk warnings are present where a change can break things", () => {
   assert.match(FIX_GUIDES["cms-wordpress"].risk, /backup/i);
 });
 
-const allSnippets = () => Object.entries(FIX_GUIDES).flatMap(([id, g]) => g.platforms.filter((p) => p.snippet).map((p) => ({ id, platform: p.id, ...p.snippet })));
+const allSnippets = () => WEBSITE_GUIDES.flatMap(([id, g]) => g.platforms.filter((p) => p.snippet).map((p) => ({ id, platform: p.id, ...p.snippet })));
 
 test("HSTS snippets never include preload; CSP snippets are Report-Only", () => {
   const hsts = allSnippets().filter((s) => s.id === "hsts");
@@ -179,7 +182,7 @@ test("IIS snippets are well-formed XML fragments to merge, with <remove> before 
       }
     }
   }
-  for (const [id, g] of Object.entries(FIX_GUIDES)) {
+  for (const [id, g] of WEBSITE_GUIDES) {
     const iis = g.platforms.find((p) => p.id === "iis");
     if (iis.snippet) assert.ok(iis.steps.some((t) => /Don't paste a second <configuration> block/.test(t)), `${id}/iis steps say merge, don't paste`);
   }

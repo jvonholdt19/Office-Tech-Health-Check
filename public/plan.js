@@ -291,7 +291,7 @@ function renderTech(plan, report) {
       "Send the client the before/after grades.",
       "Record registrar, DNS host, email admin and renewal dates in the client's runbook.",
     ]),
-    h("p", {}, h("a", { href: `/?d=${encodeURIComponent(plan.domain)}`, target: "_blank", rel: "noopener" }, "Open the public health check for this domain →")),
+    h("p", {}, h("a", { href: `/tools/email?d=${encodeURIComponent(plan.domain)}`, target: "_blank", rel: "noopener" }, "Open the Email Security Check for this domain →")),
   );
 
   // Raw findings for reference
