@@ -1,4 +1,4 @@
-// Usage: npm run scan -- acmeaccounting.com   (add --json for raw output)
+// Usage: npm run scan -- example.com   (add --json for raw output)
 import { normalizeDomain } from "../lib/domain.js";
 import { runScan } from "../lib/scan.js";
 

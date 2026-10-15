@@ -13,7 +13,7 @@ const BIZ = { name: "NWIM PM", fullName: "x", contactEmail: "josh@nwimpm.com", b
 const opts = { business: BIZ, prices: PRICES, packages: PKG, quotes: { "email-migration": { title: "Move email", from: 1500 } }, monthly: null };
 
 async function neglectedOffice() {
-  const d = "oldoffice.com";
+  const d = "old.example.net";
   return runScan(d, fakeDeps({
     mx: { [d]: [{ exchange: "mx1.mail.secureserver.net", priority: 0 }] },
     ns: { [d]: ["ns55.domaincontrol.com", "ns56.domaincontrol.com"] },
@@ -72,7 +72,7 @@ test("neglected office: exact records, urgent renewal, package pricing and proje
 });
 
 test("a single finding produces a single item and no package", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   const report = await runScan(d, fakeDeps({
     mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
     txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], [`google._domainkey.${d}`]: [DKIM_RECORD] },
@@ -87,10 +87,10 @@ test("a single finding produces a single item and no package", async () => {
 });
 
 test("a healthy domain gets an empty plan", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   const report = await runScan(d, fakeDeps({
     mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
-    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], [`_dmarc.${d}`]: ["v=DMARC1; p=reject; rua=mailto:x@acme.com"], [`google._domainkey.${d}`]: [DKIM_RECORD] },
+    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], [`_dmarc.${d}`]: ["v=DMARC1; p=reject; rua=mailto:x@example.com"], [`google._domainkey.${d}`]: [DKIM_RECORD] },
     tls: { [d]: goodTls, [`www.${d}`]: goodTls },
     http: { ok: true, status: 301, location: `https://${d}/` },
     rdap: rdapData(),
@@ -101,10 +101,10 @@ test("a healthy domain gets an empty plan", async () => {
 });
 
 test("unverifiable DKIM becomes a free 'confirm at kickoff' item, not a paid fix", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   const report = await runScan(d, fakeDeps({
     mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
-    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], [`_dmarc.${d}`]: ["v=DMARC1; p=reject; rua=mailto:x@acme.com"] },
+    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], [`_dmarc.${d}`]: ["v=DMARC1; p=reject; rua=mailto:x@example.com"] },
     tls: { [d]: goodTls, [`www.${d}`]: goodTls },
     http: { ok: true, status: 301, location: `https://${d}/` },
     rdap: rdapData(),
@@ -121,24 +121,24 @@ test("recommendSpf merges, dedupes, removes +all and adds the platform", () => {
     "v=spf1 include:mailgun.org ip4:1.2.3.4 include:spf.protection.outlook.com ~all",
   );
   // A redirect with no other senders stays a redirect (RFC 7208 §6.1); it isn't turned into an include.
-  assert.equal(recommendSpf(["v=spf1 redirect=_spf.acme.com"], "other").value, "v=spf1 redirect=_spf.acme.com");
+  assert.equal(recommendSpf(["v=spf1 redirect=_spf.example.com"], "other").value, "v=spf1 redirect=_spf.example.com");
   assert.equal(recommendSpf([], "google").value, "v=spf1 include:_spf.google.com ~all");
-  assert.equal(recommendDmarc("none", "d@x.com").value, "v=DMARC1; p=none; rua=mailto:d@x.com; fo=1");
+  assert.equal(recommendDmarc("none", "d@example.net").value, "v=DMARC1; p=none; rua=mailto:d@example.net; fo=1");
 });
 
 test("DMARC staging respects an existing enforced policy", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   const base = {
     mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
     tls: { [d]: goodTls, [`www.${d}`]: goodTls }, http: { ok: true, status: 301, location: `https://${d}/` }, rdap: rdapData(),
   };
   const txtBase = { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], [`google._domainkey.${d}`]: [DKIM_RECORD] };
-  const partial = buildPlan(await runScan(d, fakeDeps({ ...base, txt: { ...txtBase, [`_dmarc.${d}`]: ["v=DMARC1; p=quarantine; pct=50; rua=mailto:x@acme.com"] } })), opts);
+  const partial = buildPlan(await runScan(d, fakeDeps({ ...base, txt: { ...txtBase, [`_dmarc.${d}`]: ["v=DMARC1; p=quarantine; pct=50; rua=mailto:x@example.com"] } })), opts);
   assert.deepEqual(partial.items.find((i) => i.id === "dmarc").records.filter((r) => !r.zone).map((r) => r.value.match(/p=(\w+)/)[1]), ["quarantine", "reject"]);
   // p=reject without a report address passes the scan, so the plan must NOT charge to "fix" it
   const noReports = buildPlan(await runScan(d, fakeDeps({ ...base, txt: { ...txtBase, [`_dmarc.${d}`]: ["v=DMARC1; p=reject"] } })), opts);
   assert.ok(!noReports.items.some((i) => i.id === "dmarc"));
-  const monitor = buildPlan(await runScan(d, fakeDeps({ ...base, txt: { ...txtBase, [`_dmarc.${d}`]: ["v=DMARC1; p=none; rua=mailto:x@acme.com"] } })), opts);
+  const monitor = buildPlan(await runScan(d, fakeDeps({ ...base, txt: { ...txtBase, [`_dmarc.${d}`]: ["v=DMARC1; p=none; rua=mailto:x@example.com"] } })), opts);
   assert.deepEqual(monitor.items.find((i) => i.id === "dmarc").records.filter((r) => !r.zone).map((r) => r.value.match(/p=(\w+)/)[1]), ["none", "quarantine", "reject"]);
 });
 
@@ -157,12 +157,12 @@ test("plan API is locked without SESSION_SECRET and no longer accepts a header p
     process.env.PLAN_PASSCODE = "correct-horse-battery";
     setStoreForTests(memoryStore());
     let res = fakeRes();
-    await handler({ method: "GET", url: "/api/plan?domain=acme.com", headers: {}, socket: {} }, res);
+    await handler({ method: "GET", url: "/api/plan?domain=example.com", headers: {}, socket: {} }, res);
     assert.equal(res.statusCode, 503);
 
     process.env.SESSION_SECRET = "x".repeat(40);
     res = fakeRes();
-    await handler({ method: "GET", url: "/api/plan?domain=acme.com", headers: { "x-plan-passcode": "correct-horse-battery", "x-real-ip": "9.9.9.9" }, socket: {} }, res);
+    await handler({ method: "GET", url: "/api/plan?domain=example.com", headers: { "x-plan-passcode": "correct-horse-battery", "x-real-ip": "9.9.9.9" }, socket: {} }, res);
     assert.equal(res.statusCode, 401, "the old header is ignored");
     assert.equal(res.headers["cache-control"], "no-store");
 
@@ -200,13 +200,13 @@ test("technician checklist shows what's there now and exactly what to change", a
 
   assert.match(item("ssl").settings[0].now, /^Expired \(CERT_HAS_EXPIRED\)$/);
   assert.match(item("https-redirect").settings[0].now, /Off \(HTTP 200\)/);
-  assert.match(item("https-redirect").settings[0].to, /https:\/\/oldoffice\.com\//);
+  assert.match(item("https-redirect").settings[0].to, /https:\/\/old\.example\.net\//);
 });
 
 test("duplicate SPF records: edit the first in place to the merged record, delete the rest; existing senders are named", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   const report = await runScan(d, fakeDeps({
-    mx: { [d]: [{ exchange: "acme-com.mail.protection.outlook.com", priority: 0 }] },
+    mx: { [d]: [{ exchange: "example-com.mail.protection.outlook.com", priority: 0 }] },
     txt: { [d]: ["v=spf1 include:spf.protection.outlook.com -all", "v=spf1 include:sendgrid.net ~all"] },
   }));
   const spf = buildPlan(report, opts).items.find((i) => i.id === "spf");
@@ -222,7 +222,7 @@ test("duplicate SPF records: edit the first in place to the merged record, delet
 });
 
 test("existing SPF is replaced, showing the current value next to the new one", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   const report = await runScan(d, fakeDeps({
     mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
     txt: { [d]: ["v=spf1 include:mailgun.org +all"], "mailgun.org": ["v=spf1 ip4:1.2.3.4 -all"] },

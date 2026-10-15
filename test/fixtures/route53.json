@@ -1,7 +1,7 @@
 {"ResourceRecordSets":[
- {"Name":"r53co.com.","Type":"A","AliasTarget":{"HostedZoneId":"Z2","DNSName":"d111.cloudfront.net.","EvaluateTargetHealth":false}},
- {"Name":"r53co.com.","Type":"MX","TTL":300,"ResourceRecords":[{"Value":"10 inbound-smtp.us-east-1.amazonaws.com"}]},
- {"Name":"r53co.com.","Type":"TXT","TTL":300,"ResourceRecords":[{"Value":"\"v=spf1 include:amazonses.com ~all\""}]},
- {"Name":"_dmarc.r53co.com.","Type":"TXT","TTL":300,"ResourceRecords":[{"Value":"\"v=DMARC1; p=none;\" \" rua=mailto:d@r53co.com\""}]},
- {"Name":"\\052.r53co.com.","Type":"CNAME","TTL":300,"ResourceRecords":[{"Value":"r53co.com"}]}
+ {"Name":"r53.example.com.","Type":"A","AliasTarget":{"HostedZoneId":"Z2","DNSName":"d111.cloudfront.net.","EvaluateTargetHealth":false}},
+ {"Name":"r53.example.com.","Type":"MX","TTL":300,"ResourceRecords":[{"Value":"10 inbound-smtp.us-east-1.amazonaws.com"}]},
+ {"Name":"r53.example.com.","Type":"TXT","TTL":300,"ResourceRecords":[{"Value":"\"v=spf1 include:amazonses.com ~all\""}]},
+ {"Name":"_dmarc.r53.example.com.","Type":"TXT","TTL":300,"ResourceRecords":[{"Value":"\"v=DMARC1; p=none;\" \" rua=mailto:d@r53.example.com\""}]},
+ {"Name":"\\052.r53.example.com.","Type":"CNAME","TTL":300,"ResourceRecords":[{"Value":"r53.example.com"}]}
 ]}

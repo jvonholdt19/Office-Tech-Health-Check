@@ -64,7 +64,7 @@ const preview = (domain, opts) => call(previewHandler, `/api/preview?domain=${en
 /* ------------------------------ preview ------------------------------ */
 
 test("preview returns only domain, grade and id/title/status per item", async () => {
-  const r = await preview("acmedental.com");
+  const r = await preview("example.com");
   assert.equal(r.status, 200);
   assert.deepEqual(Object.keys(r.json).sort(), ["domain", "grade", "items"]);
   for (const item of r.json.items) assert.deepEqual(Object.keys(item).sort(), ["id", "status", "title"]);
@@ -75,11 +75,11 @@ test("preview returns only domain, grade and id/title/status per item", async ()
 
 test("runPreview grades SPF, DMARC and HTTPS only, and returns nothing else", async () => {
   const deps = fakeDeps({
-    mx: { "acmedental.com": [{ exchange: "aspmx.l.google.com", priority: 1 }] },
-    txt: { "acmedental.com": ["v=spf1 include:_spf.google.com ~all"], "_dmarc.acmedental.com": ["v=DMARC1; p=reject; rua=mailto:d@acmedental.com"], "google._domainkey.acmedental.com": [DKIM_RECORD] },
-    tls: { "acmedental.com": goodTls, "www.acmedental.com": goodTls },
+    mx: { "example.com": [{ exchange: "aspmx.l.google.com", priority: 1 }] },
+    txt: { "example.com": ["v=spf1 include:_spf.google.com ~all"], "_dmarc.example.com": ["v=DMARC1; p=reject; rua=mailto:d@example.com"], "google._domainkey.example.com": [DKIM_RECORD] },
+    tls: { "example.com": goodTls, "www.example.com": goodTls },
   });
-  const r = await runPreview("acmedental.com", deps);
+  const r = await runPreview("example.com", deps);
   assert.deepEqual(Object.keys(r).sort(), ["domain", "grade", "items"]);
   assert.deepEqual(r.items.map((i) => i.id), ["spf", "dmarc", "ssl"]);
   assert.deepEqual(r.items.map((i) => i.status), ["pass", "pass", "pass"]);
@@ -88,62 +88,62 @@ test("runPreview grades SPF, DMARC and HTTPS only, and returns nothing else", as
 
 test("preview SSRF: internal names and IPs are refused, and a domain resolving to a private IP is never connected to", async () => {
   for (const d of ["localhost", "10.0.0.1", "169.254.169.254", "127.0.0.1", "intranet.local"]) assert.equal((await preview(d)).status, 400, d);
-  const resolver = fakeResolver({ a: { "evil-dental.com": ["10.0.0.5"], "www.evil-dental.com": ["169.254.169.254"] } });
+  const resolver = fakeResolver({ a: { "evil.example.com": ["10.0.0.5"], "www.evil.example.com": ["169.254.169.254"] } });
   const neverConnect = () => assert.fail("must not connect to a private address");
-  const r = await runPreview("evil-dental.com", { ...fakeDeps(), resolver, inspectTls: (h) => inspectTls(h, { resolver, connect: neverConnect }) });
+  const r = await runPreview("evil.example.com", { ...fakeDeps(), resolver, inspectTls: (h) => inspectTls(h, { resolver, connect: neverConnect }) });
   assert.equal(r.items.find((i) => i.id === "ssl").status, "info", "HTTPS not checked: no public address");
 });
 
 test("preview per-IP limit: 5 per 10 minutes, then 429 with Retry-After", async () => {
-  for (let i = 0; i < 5; i++) assert.equal((await preview(`site${i}.com`)).status, 200);
-  const r = await preview("site9.com");
+  for (let i = 0; i < 5; i++) assert.equal((await preview(`site${i}.example.com`)).status, 200);
+  const r = await preview("site9.example.com");
   assert.equal(r.status, 429);
   assert.ok(Number(r.headers["retry-after"]) > 0);
-  assert.equal((await preview("site9.com", { ip: "198.51.100.7" })).status, 200, "another visitor is unaffected");
-  assert.equal((await preview("site8.com", { ip: "203.0.113.5", headers: { "x-forwarded-for": "1.2.3.4" } })).status, 429, "x-forwarded-for can't dodge it");
+  assert.equal((await preview("site9.example.com", { ip: "198.51.100.7" })).status, 200, "another visitor is unaffected");
+  assert.equal((await preview("site8.example.com", { ip: "203.0.113.5", headers: { "x-forwarded-for": "1.2.3.4" } })).status, 429, "x-forwarded-for can't dodge it");
 });
 
 test("preview per-IP daily limit: 20 per day", async () => {
   for (let i = 0; i < 20; i++) await store.hit("preview-ip-day:203.0.113.5", 86_400);
-  const r = await preview("acmedental.com");
+  const r = await preview("example.com");
   assert.equal(r.status, 429);
   assert.match(r.json.error, /Daily limit/);
 });
 
 test("preview per-domain limit: 3 per 10 minutes across all visitors", async () => {
-  for (let i = 0; i < 3; i++) assert.equal((await preview("acmedental.com", { ip: `198.51.100.${i}` })).status, 200);
-  const r = await preview("acmedental.com", { ip: "198.51.100.50" });
+  for (let i = 0; i < 3; i++) assert.equal((await preview("example.com", { ip: `198.51.100.${i}` })).status, 200);
+  const r = await preview("example.com", { ip: "198.51.100.50" });
   assert.equal(r.status, 429);
   assert.match(r.json.error, /checked several times/);
 });
 
 test("preview global cap: 300 per hour", async () => {
   for (let i = 0; i < 300; i++) await store.hit("preview-global", 3600);
-  assert.equal((await preview("acmedental.com")).status, 429);
+  assert.equal((await preview("example.com")).status, 429);
   assert.deepEqual(PREVIEW_LIMITS.map((l) => [l.max, l.windowSeconds]), [[5, 600], [20, 86_400], [3, 600], [300, 3600]]);
 });
 
 const count = async (key, windowSeconds) => (await store.hit(key, windowSeconds, 0)).count; // read without counting
 
 test("preview: requests over the per-IP limit don't count against the domain or global counters", async () => {
-  for (let i = 0; i < 50; i++) await preview("acmedental.com");
+  for (let i = 0; i < 50; i++) await preview("example.com");
   assert.equal(await count("preview-ip:203.0.113.5", 600), 50, "every request still counts against the client itself");
-  assert.equal(await count("preview-domain:acmedental.com", 600), 5, "only the 5 requests the per-IP limit allowed reached the domain counter");
+  assert.equal(await count("preview-domain:example.com", 600), 5, "only the 5 requests the per-IP limit allowed reached the domain counter");
   assert.equal(await count("preview-global", 3600), 5, "and the global counter");
 });
 
 test("preview: a client over its own limit can't lock a domain for everyone else", async () => {
-  for (let i = 0; i < 5; i++) assert.equal((await preview(`other${i}-dental.com`)).status, 200, "uses up its own 5");
-  for (let i = 0; i < 40; i++) assert.equal((await preview("victim-dental.com")).status, 429);
-  assert.equal(await count("preview-domain:victim-dental.com", 600), 0);
-  assert.equal((await preview("victim-dental.com", { ip: "198.51.100.20" })).status, 200, "another visitor can still check that domain");
+  for (let i = 0; i < 5; i++) assert.equal((await preview(`other${i}.example.com`)).status, 200, "uses up its own 5");
+  for (let i = 0; i < 40; i++) assert.equal((await preview("victim.example.com")).status, 429);
+  assert.equal(await count("preview-domain:victim.example.com", 600), 0);
+  assert.equal((await preview("victim.example.com", { ip: "198.51.100.20" })).status, 200, "another visitor can still check that domain");
 });
 
 test("preview: a client over its own limit can't exhaust the global cap", async () => {
   for (let i = 0; i < 290; i++) await store.hit("preview-global", 3600);
-  for (let i = 0; i < 200; i++) await preview(`flood${i}-dental.com`);
+  for (let i = 0; i < 200; i++) await preview(`flood${i}.example.com`);
   assert.equal(await count("preview-global", 3600), 295, "only the flooder's first 5 requests counted");
-  assert.equal((await preview("acmedental.com", { ip: "198.51.100.21" })).status, 200);
+  assert.equal((await preview("example.com", { ip: "198.51.100.21" })).status, 200);
 });
 
 test("preview: IPv6 clients are limited by /64 prefix; IPv4 (and IPv4-mapped IPv6) by address", async () => {
@@ -152,28 +152,28 @@ test("preview: IPv6 clients are limited by /64 prefix; IPv4 (and IPv4-mapped IPv
   assert.equal(clientKey("2001:db8::1"), "2001:db8:0:0::/64");
   assert.equal(clientKey("::ffff:198.51.100.7"), "198.51.100.7");
   assert.equal(clientKey("203.0.113.5"), "203.0.113.5");
-  for (let i = 1; i <= 5; i++) assert.equal((await preview(`v6-${i}-dental.com`, { ip: `2001:db8:1:2::${i}` })).status, 200);
-  assert.equal((await preview("v6-6-dental.com", { ip: "2001:db8:1:2:aaaa:bbbb:cccc:dddd" })).status, 429, "a different address in the same /64 shares the limit");
-  assert.equal((await preview("v6-7-dental.com", { ip: "2001:db8:1:3::1" })).status, 200, "the next /64 is a different client");
-  for (let i = 0; i < 5; i++) await preview(`v4-${i}-dental.com`, { ip: "198.51.100.30" });
-  assert.equal((await preview("v4-x-dental.com", { ip: "198.51.100.31" })).status, 200, "neighbouring IPv4 addresses are separate");
-  assert.equal((await preview("v4-y-dental.com", { ip: "::ffff:198.51.100.30" })).status, 429, "IPv4-mapped IPv6 is the same client as the IPv4 address");
+  for (let i = 1; i <= 5; i++) assert.equal((await preview(`v6-${i}.example.com`, { ip: `2001:db8:1:2::${i}` })).status, 200);
+  assert.equal((await preview("v6-6.example.com", { ip: "2001:db8:1:2:aaaa:bbbb:cccc:dddd" })).status, 429, "a different address in the same /64 shares the limit");
+  assert.equal((await preview("v6-7.example.com", { ip: "2001:db8:1:3::1" })).status, 200, "the next /64 is a different client");
+  for (let i = 0; i < 5; i++) await preview(`v4-${i}.example.com`, { ip: "198.51.100.30" });
+  assert.equal((await preview("v4-x.example.com", { ip: "198.51.100.31" })).status, 200, "neighbouring IPv4 addresses are separate");
+  assert.equal((await preview("v4-y.example.com", { ip: "::ffff:198.51.100.30" })).status, 429, "IPv4-mapped IPv6 is the same client as the IPv4 address");
 });
 
 test("preview fails closed (503) without the store, or when it errors", async () => {
   setStoreForTests(null);
-  assert.equal((await preview("acmedental.com")).status, 503);
+  assert.equal((await preview("example.com")).status, 503);
   setStoreForTests({ hit: async () => { throw new Error("down"); }, audit: async () => {} });
-  assert.equal((await preview("acmedental.com")).status, 503);
+  assert.equal((await preview("example.com")).status, 503);
 });
 
 test("preview audit: at most one preview_scan per IP per hour, with ip, domain and grade only", async () => {
-  await preview("one-dental.com");
-  await preview("two-dental.com");
-  await preview("three-dental.com", { ip: "198.51.100.9" });
+  await preview("one.example.com");
+  await preview("two.example.com");
+  await preview("three.example.com", { ip: "198.51.100.9" });
   const audits = events.filter((e) => e.event === "preview_scan");
   assert.equal(audits.length, 2);
-  assert.deepEqual(audits.map((e) => e.domain), ["one-dental.com", "three-dental.com"]);
+  assert.deepEqual(audits.map((e) => e.domain), ["one.example.com", "three.example.com"]);
   assert.deepEqual(audits[0].data, { grade: "C" });
   assert.equal(audits[0].ip, "203.0.113.5");
   assert.equal(audits[0].sid, undefined);
@@ -181,20 +181,20 @@ test("preview audit: at most one preview_scan per IP per hour, with ip, domain a
 });
 
 test("preview is GET only", async () => {
-  assert.equal((await preview("acmedental.com", { method: "POST" })).status, 405);
+  assert.equal((await preview("example.com", { method: "POST" })).status, 405);
 });
 
 /* ------------------------------ /api/scan ------------------------------ */
 
 test("/api/scan is private now: 401 without a session; works and is audited with one", async () => {
-  assert.equal((await call(scanHandler, "/api/scan?domain=acmedental.com")).status, 401);
-  setScanDepsForTests(fakeDeps({ mx: { "acmedental.com": [{ exchange: "aspmx.l.google.com", priority: 1 }] } }));
+  assert.equal((await call(scanHandler, "/api/scan?domain=example.com")).status, 401);
+  setScanDepsForTests(fakeDeps({ mx: { "example.com": [{ exchange: "aspmx.l.google.com", priority: 1 }] } }));
   const cookie = `ohc_tech=${encodeSession(newSession(), SECRET)}`;
-  const r = await call(scanHandler, "/api/scan?domain=acmedental.com", { headers: { cookie } });
+  const r = await call(scanHandler, "/api/scan?domain=example.com", { headers: { cookie } });
   assert.equal(r.status, 200);
   for (const k of ["domain", "score", "grade", "coverage", "checks", "fixes", "provider"]) assert.ok(k in r.json, k);
   const e = events.find((x) => x.event === "scan");
-  assert.ok(e && e.sid && e.domain === "acmedental.com");
+  assert.ok(e && e.sid && e.domain === "example.com");
   assert.deepEqual(Object.keys(e.data).sort(), ["counts", "durationMs", "grade", "score"]);
 });
 
@@ -243,15 +243,15 @@ test("the scanner moved to /tools/email behind the gate; dashboard and redirects
 
 test("old links /?domain=x and /?d=x land on /tools/email with the domain filled in", async () => {
   assert.deepEqual(JSON.parse(read("vercel.json")).redirects, OLD_LINK_REDIRECTS, "vercel.json uses the same rules as the dev server");
-  assert.deepEqual(oldLinkRedirect("/?domain=acmedental.com"), { status: 307, location: "/tools/email?d=acmedental.com" });
-  assert.deepEqual(oldLinkRedirect("/?d=acmedental.com&utm=x"), { status: 307, location: "/tools/email?d=acmedental.com" });
+  assert.deepEqual(oldLinkRedirect("/?domain=example.com"), { status: 307, location: "/tools/email?d=example.com" });
+  assert.deepEqual(oldLinkRedirect("/?d=example.com&utm=x"), { status: 307, location: "/tools/email?d=example.com" });
   assert.equal(oldLinkRedirect("/?d=https://evil.example/"), null, "only domain characters are captured");
   assert.equal(oldLinkRedirect("/"), null);
 
   // The landing page fills the domain in after sign-in (fake DOM, like test/website-page.test.js).
   const els = {};
   const el = (id) => (els[id] ||= { id, hidden: false, value: "", textContent: "", disabled: false, children: [], listeners: {}, addEventListener(t, f) { this.listeners[t] = f; }, focus() {}, replaceChildren() {}, scrollIntoView() {} });
-  for (const search of ["?d=acmedental.com", "?domain=acmedental.com"]) {
+  for (const search of ["?d=example.com", "?domain=example.com"]) {
     for (const k of Object.keys(els)) delete els[k];
     Object.assign(globalThis, {
       document: { getElementById: el, createElement: () => ({}), createTextNode: (t) => t },
@@ -261,7 +261,7 @@ test("old links /?domain=x and /?d=x land on /tools/email with the domain filled
     });
     await import(`../public/email.js?t=${Date.now()}${search}`);
     for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r));
-    assert.equal(els.domain.value, "acmedental.com", `${search} pre-fills the domain`);
+    assert.equal(els.domain.value, "example.com", `${search} pre-fills the domain`);
     assert.equal(els.tool.hidden, false);
   }
 });

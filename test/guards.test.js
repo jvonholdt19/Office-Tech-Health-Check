@@ -13,7 +13,7 @@ import { buildFullPlan } from "../api/plan.js";
 import { confirmChangeSet } from "../api/plan-confirm.js";
 import { fakeDeps, DKIM_RECORD } from "./fakes.js";
 
-const d = "acme.com";
+const d = "example.com";
 const fixture = (f) => readFileSync(new URL(`./fixtures/${f}`, import.meta.url), "utf8");
 const entry = (type, name, before, after, extra = {}) => ({ type, name, fqdn: name === "@" ? d : `${name}.${d}`, action: "replace", before, after, changes: [], blocked: false, ...extra });
 const guard = (cs, opts = {}) => checkChangeSet(cs, { domain: d, ...opts });
@@ -105,7 +105,7 @@ test("parseZone is pure: no file writes and no network", () => {
   ];
   syncBuiltinESMExports();
   try {
-    for (const [f, dom] of [["godaddy.txt", "oldoffice.com"], ["cloudflare.txt", "acme.com"], ["hosts.csv", "csvco.com"], ["route53.json", "r53co.com"]]) {
+    for (const [f, dom] of [["godaddy.txt", "old.example.net"], ["cloudflare.txt", "example.com"], ["hosts.csv", "csv.example.com"], ["route53.json", "r53.example.com"]]) {
       const text = fixture(f);
       const z = parseZone(text, dom);
       assert.ok(z.records.length > 0);
@@ -121,7 +121,7 @@ test("building a plan from an upload never writes the upload anywhere", async ()
   const pspies = ["writeFile", "appendFile"].map((m) => mock.method(fs.promises, m, async () => assert.fail(`fs.promises.${m} called`)));
   syncBuiltinESMExports();
   try {
-    const r = await buildFullPlan("oldoffice.com", { text: fixture("godaddy.txt") }, fakeDeps({ txt: { "_spf.google.com": ["v=spf1 ~all"], "secureserver.net": ["v=spf1 ip4:68.178.213.0/24 ~all"], "servers.mcsv.net": ["v=spf1 ip4:205.201.128.0/20 ~all"] } }));
+    const r = await buildFullPlan("old.example.net", { text: fixture("godaddy.txt") }, fakeDeps({ txt: { "_spf.google.com": ["v=spf1 ~all"], "secureserver.net": ["v=spf1 ip4:68.178.213.0/24 ~all"], "servers.mcsv.net": ["v=spf1 ip4:205.201.128.0/20 ~all"] } }));
     assert.match(r.zone.sha256, /^[0-9a-f]{64}$/);
     assert.equal(r.zone.text, undefined, "the response doesn't echo the upload");
   } finally {
@@ -133,11 +133,11 @@ test("building a plan from an upload never writes the upload anywhere", async ()
 test("upload mismatch: blocked on the first request, unlocked by a confirmation that matches the upload", async () => {
   const INC = { "_spf.google.com": ["v=spf1 ~all"], "secureserver.net": ["v=spf1 ip4:68.178.213.0/24 ~all"], "servers.mcsv.net": ["v=spf1 ip4:205.201.128.0/20 ~all"] };
   const zone = { text: fixture("godaddy.txt") };
-  const first = await buildFullPlan("oldoffice.com", zone, fakeDeps({ txt: INC }));
+  const first = await buildFullPlan("old.example.net", zone, fakeDeps({ txt: INC }));
   assert.equal(first.guards.blocked, "upload-mismatch");
-  const wrong = await buildFullPlan("oldoffice.com", zone, fakeDeps({ txt: INC }), { confirmExport: { sha256: "0".repeat(64) } });
+  const wrong = await buildFullPlan("old.example.net", zone, fakeDeps({ txt: INC }), { confirmExport: { sha256: "0".repeat(64) } });
   assert.equal(wrong.guards.blocked, "upload-mismatch", "a confirmation for a different file doesn't count");
-  const second = await buildFullPlan("oldoffice.com", zone, fakeDeps({ txt: INC }), { confirmExport: { sha256: first.zone.sha256 } });
+  const second = await buildFullPlan("old.example.net", zone, fakeDeps({ txt: INC }), { confirmExport: { sha256: first.zone.sha256 } });
   assert.equal(second.guards.blocked, false);
 });
 
@@ -148,9 +148,9 @@ test("confirm: the server recomputes the hash, requires the typed domain, and re
   });
   const built = await buildFullPlan(d, null, deps);
   assert.equal(built.guards.blocked, false, built.guards.reasons.join(" "));
-  assert.equal((await confirmChangeSet({ domain: d, typedDomain: "acme.co", changeSetHash: built.changeSetHash }, deps)).status, 400);
+  assert.equal((await confirmChangeSet({ domain: d, typedDomain: "example.net", changeSetHash: built.changeSetHash }, deps)).status, 400);
   assert.equal((await confirmChangeSet({ domain: d, typedDomain: d, changeSetHash: "f".repeat(64) }, deps)).status, 409, "stale or forged hash");
-  const ok = await confirmChangeSet({ domain: d, typedDomain: "ACME.com", changeSetHash: built.changeSetHash }, deps);
+  const ok = await confirmChangeSet({ domain: d, typedDomain: "EXAMPLE.com", changeSetHash: built.changeSetHash }, deps);
   assert.equal(ok.status, 200);
   assert.ok(ok.body.values.some((v) => v.value === "v=spf1 include:sendgrid.net include:_spf.google.com ~all"));
   assert.equal(ok.audit.changeSetHash, built.changeSetHash);

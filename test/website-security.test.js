@@ -4,6 +4,7 @@ import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import {
   checkHsts,
+  hstsDuration,
   checkCsp,
   checkFraming,
   checkNosniff,
@@ -32,9 +33,23 @@ import { onAudit } from "../lib/audit.js";
 import { encodeSession, newSession } from "../lib/session.js";
 import { fakeResolver, goodTls, NOW } from "./fakes.js";
 
-const page = (headers = {}, body = "", url = "https://acmedental.com/", status = 200) => ({ ok: true, url, status, headers, body, truncated: false });
+const page = (headers = {}, body = "", url = "https://example.com/", status = 200) => ({ ok: true, url, status, headers, body, truncated: false });
 
 /* ---------------------------- headers ---------------------------- */
+
+test("HSTS: a short max-age is described in minutes or hours, never as \"0 days\"", () => {
+  const summary = (age) => checkHsts(page({ "strict-transport-security": `max-age=${age}` })).summary;
+  assert.equal(summary(300), "HSTS is on, but only for 5 minutes (less than a day). Six months or more is recommended.");
+  assert.match(summary(1), /only for 1 second \(less than a day\)/);
+  assert.match(summary(600), /only for 10 minutes \(less than a day\)/);
+  assert.match(summary(7200), /only for 2 hours \(less than a day\)/);
+  assert.match(summary(86400), /only for 1 day\. /);
+  assert.match(summary(604800), /only for 7 days\. /);
+  for (const age of [1, 59, 60, 300, 3599, 3600, 86399, 86400, 15551999]) {
+    assert.ok(!/\b0 (days|hours|minutes|seconds)\b/.test(summary(age)), `max-age=${age}: ${summary(age)}`);
+  }
+  assert.deepEqual([59, 60, 119, 3600, 86399, 172800].map(hstsDuration), ["59 seconds", "1 minute", "1 minute", "1 hour", "23 hours", "2 days"]);
+});
 
 test("HSTS: missing fails, short warns, max-age=0 fails, six months passes", () => {
   assert.equal(checkHsts(page()).status, "fail");
@@ -120,8 +135,8 @@ test("Set-Cookie parsing reads flags and never keeps values", () => {
 
 test("cookies: all flags set passes; cookies on redirect hops count; none set passes", () => {
   const good = "sid=x; Secure; HttpOnly; SameSite=Strict";
-  const hop = page({ "set-cookie": ["lang=en; Secure; SameSite=Lax"], location: "/home" }, "", "https://acmedental.com/", 302);
-  const final = page({ "set-cookie": [good] }, "", "https://acmedental.com/home");
+  const hop = page({ "set-cookie": ["lang=en; Secure; SameSite=Lax"], location: "/home" }, "", "https://example.com/", 302);
+  const final = page({ "set-cookie": [good] }, "", "https://example.com/home");
   const r = checkCookies({ https: { ok: true, responses: [hop, final], final }, http: null });
   assert.equal(r.status, "pass");
   assert.deepEqual(r.data.cookies.map((c) => c.name), ["lang", "sid"]);
@@ -135,9 +150,9 @@ test("mixed content: http:// in src, stylesheet links and form actions; only on 
     <script src="http://cdn.example/a.js"></script>
     <img src='https://ok.example/a.png'><img src=http://img.example/b.png>
     <link rel="stylesheet" href="http://cdn.example/s.css">
-    <link rel="canonical" href="http://acmedental.com/">
+    <link rel="canonical" href="http://example.com/">
     <a href="http://elsewhere.example/">plain links are fine</a>
-    <form action="http://acmedental.com/contact" method="post"></form>`;
+    <form action="http://example.com/contact" method="post"></form>`;
   const found = findMixedContent(html);
   assert.deepEqual(found.map((f) => f.tag), ["script", "img", "link", "form"]);
   assert.deepEqual(found.map((f) => f.active), [true, false, true, true]);
@@ -146,7 +161,7 @@ test("mixed content: http:// in src, stylesheet links and form actions; only on 
   assert.equal(r.weight, 6);
   assert.equal(r.data.forms, 1);
   assert.equal(checkMixedContent(page({}, "<img src=/x.png>")).status, "pass");
-  assert.equal(checkMixedContent(page({}, html, "http://acmedental.com/")).status, "info", "not checked on plain-HTTP pages");
+  assert.equal(checkMixedContent(page({}, html, "http://example.com/")).status, "info", "not checked on plain-HTTP pages");
 });
 
 test("mixed content: active (script, iframe, stylesheet, form) fails; passive (img, audio, video, source) warns", () => {
@@ -170,7 +185,7 @@ test("HSTS weight 8; includeSubDomains/preload are noted without changing the sc
   assert.deepEqual([full.data.includeSubDomains, full.data.preload], [true, true]);
   assert.match(full.summary, /includeSubDomains/);
   assert.match(plain.summary, /Optional: includeSubDomains/);
-  const http = { ok: true, responses: [page({ "strict-transport-security": "max-age=31536000", location: "https://acmedental.com/" }, "", "http://acmedental.com/", 301)] };
+  const http = { ok: true, responses: [page({ "strict-transport-security": "max-age=31536000", location: "https://example.com/" }, "", "http://example.com/", 301)] };
   const onlyHttp = checkHsts(page(), { http });
   assert.equal(onlyHttp.status, "fail");
   assert.equal(onlyHttp.data.code, "http-only");
@@ -224,37 +239,37 @@ test("cookies: missing HttpOnly warns only for session-looking names", () => {
 /* -------------------------------- SRI ---------------------------- */
 
 test("SRI: third-party scripts without integrity warn only for smaller hosts; major CDNs are info; own scripts ignored", () => {
-  const sri = (html) => checkSri(page({}, html), "acmedental.com");
-  assert.equal(sri(`<script src="/app.js"></script><script src="https://www.acmedental.com/x.js"></script>`).status, "pass");
-  assert.equal(sri(`<script src="https://cdn.tinywidgets.io/w.js" integrity="sha384-abc" crossorigin="anonymous"></script>`).status, "pass");
+  const sri = (html) => checkSri(page({}, html), "example.com");
+  assert.equal(sri(`<script src="/app.js"></script><script src="https://www.example.com/x.js"></script>`).status, "pass");
+  assert.equal(sri(`<script src="https://widgets.example.net/w.js" integrity="sha384-abc" crossorigin="anonymous"></script>`).status, "pass");
   const major = sri(`<script async src="https://www.googletagmanager.com/gtag/js?id=G-1"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>`);
   assert.equal(major.status, "info");
   assert.equal(major.weight, 0);
-  const minor = sri(`<script src="//cdn.tinywidgets.io/w.js"></script><script src="https://www.googletagmanager.com/gtm.js"></script>`);
+  const minor = sri(`<script src="//widgets.example.net/w.js"></script><script src="https://www.googletagmanager.com/gtm.js"></script>`);
   assert.equal(minor.status, "warn");
   assert.equal(minor.weight, 3);
-  assert.deepEqual(minor.data.hosts, ["cdn.tinywidgets.io"]);
-  assert.deepEqual(findExternalScripts(`<script src="https://a.example/x.js" integrity="sha256-x"></script>`, "acmedental.com").map((s) => s.integrity), [true]);
+  assert.deepEqual(minor.data.hosts, ["widgets.example.net"]);
+  assert.deepEqual(findExternalScripts(`<script src="https://a.example/x.js" integrity="sha256-x"></script>`, "example.com").map((s) => s.integrity), [true]);
 });
 
 /* -------------------------------- CORS --------------------------- */
 
 test("CORS: wildcard is info; credentials for another origin warn; none is info", () => {
-  assert.equal(checkCors(page(), "acmedental.com").status, "info");
-  const star = checkCors(page({ "access-control-allow-origin": "*" }), "acmedental.com");
+  assert.equal(checkCors(page(), "example.com").status, "info");
+  const star = checkCors(page({ "access-control-allow-origin": "*" }), "example.com");
   assert.equal(star.status, "info");
   assert.equal(star.weight, 0);
-  const creds = checkCors(page({ "access-control-allow-origin": "https://evil.example", "access-control-allow-credentials": "true" }), "acmedental.com");
+  const creds = checkCors(page({ "access-control-allow-origin": "https://evil.example", "access-control-allow-credentials": "true" }), "example.com");
   assert.equal(creds.status, "warn");
   assert.equal(creds.weight, 3);
-  assert.equal(checkCors(page({ "access-control-allow-origin": "null", "access-control-allow-credentials": "true" }), "acmedental.com").status, "warn");
-  assert.equal(checkCors(page({ "access-control-allow-origin": "https://shop.acmedental.com", "access-control-allow-credentials": "true" }), "acmedental.com").status, "info", "own subdomain is fine");
+  assert.equal(checkCors(page({ "access-control-allow-origin": "null", "access-control-allow-credentials": "true" }), "example.com").status, "warn");
+  assert.equal(checkCors(page({ "access-control-allow-origin": "https://shop.example.com", "access-control-allow-credentials": "true" }), "example.com").status, "info", "own subdomain is fine");
 });
 
 /* --------------------------- certificate ------------------------- */
 
 const tlsFor = (days, extra = {}) => ({ ok: true, authorized: true, validTo: new Date(NOW.getTime() + days * 86400000 + 3600000).toISOString(), issuer: "Let's Encrypt", protocol: "TLSv1.3", ...extra });
-const cert = (apex, www, usesWww = false) => checkCertificate({ host: "acmedental.com", tls: [{ host: "acmedental.com", ...apex }, { host: "www.acmedental.com", ...www }], usesWww }, { now: () => NOW });
+const cert = (apex, www, usesWww = false) => checkCertificate({ host: "example.com", tls: [{ host: "example.com", ...apex }, { host: "www.example.com", ...www }], usesWww }, { now: () => NOW });
 
 test("certificate (website tool): 20 days warns, 6 days fails, 30 days passes", () => {
   assert.equal(cert(tlsFor(30), tlsFor(30)).status, "pass");
@@ -264,7 +279,7 @@ test("certificate (website tool): 20 days warns, 6 days fails, 30 days passes", 
   const six = cert(tlsFor(90), tlsFor(6));
   assert.equal(six.status, "fail");
   assert.equal(six.data.code, "expiring-urgent");
-  assert.equal(six.data.host, "www.acmedental.com");
+  assert.equal(six.data.host, "www.example.com");
 });
 
 test("certificate: invalid on www only warns when the site never uses www; otherwise fails", () => {
@@ -272,20 +287,20 @@ test("certificate: invalid on www only warns when the site never uses www; other
   const wwwOnly = cert(tlsFor(90), badWww, false);
   assert.equal(wwwOnly.status, "warn");
   assert.equal(wwwOnly.data.code, "www-invalid");
-  assert.equal(wwwOnly.data.host, "www.acmedental.com");
+  assert.equal(wwwOnly.data.host, "www.example.com");
   assert.equal(cert(tlsFor(90), badWww, true).status, "fail", "the site redirects to www, so visitors see the warning");
   assert.equal(cert({ ok: true, authorized: false, authorizationError: "CERT_HAS_EXPIRED" }, tlsFor(90)).data.code, "invalid", "an invalid apex always fails");
 });
 
 test("TLS details: info with protocol and key; TLS 1.0/1.1 fails (weight 0)", () => {
-  const ok = checkTlsDetails({ host: "acmedental.com", tls: [{ host: "acmedental.com", ...tlsFor(90, { keyType: "EC", keyBits: 256 }) }] });
+  const ok = checkTlsDetails({ host: "example.com", tls: [{ host: "example.com", ...tlsFor(90, { keyType: "EC", keyBits: 256 }) }] });
   assert.equal(ok.status, "info");
   assert.equal(ok.weight, 0);
   assert.match(ok.summary, /TLSv1\.3 with an EC 256-bit key/);
-  const old = checkTlsDetails({ host: "acmedental.com", tls: [{ host: "acmedental.com", ...tlsFor(90, { protocol: "TLSv1.1" }) }] });
+  const old = checkTlsDetails({ host: "example.com", tls: [{ host: "example.com", ...tlsFor(90, { protocol: "TLSv1.1" }) }] });
   assert.equal(old.status, "fail");
   assert.equal(old.weight, 0);
-  assert.equal(checkTlsDetails({ host: "acmedental.com", tls: [{ host: "acmedental.com", ...tlsFor(90, { keyType: "RSA", keyBits: 1024 }) }] }).data.code, "weak-key");
+  assert.equal(checkTlsDetails({ host: "example.com", tls: [{ host: "example.com", ...tlsFor(90, { keyType: "RSA", keyBits: 1024 }) }] }).data.code, "weak-key");
 });
 
 /* ----------------------- version disclosure ---------------------- */
@@ -375,23 +390,23 @@ test("a failed WordPress.org lookup is not cached: the next scan tries again", a
 test("a scan reports an off-site redirect instead of following it", async () => {
   const log = [];
   const fetchPage = fakeFetchPage({
-    "https://acmedental.com/": { status: 301, headers: { location: "https://acmedental.wixsite.com/home" } },
-    "http://acmedental.com/": { status: 301, headers: { location: "https://acmedental.com/" } },
+    "https://example.com/": { status: 301, headers: { location: "https://example.wixsite.com/home" } },
+    "http://example.com/": { status: 301, headers: { location: "https://example.com/" } },
   }, log);
-  const r = await runWebsiteScan("acmedental.com", { resolver: fakeResolver(acmeDns), fetchPage, inspectTls: async () => goodTls, wordpressVersions: versionsOk, now: () => NOW });
+  const r = await runWebsiteScan("example.com", { resolver: fakeResolver(siteDns), fetchPage, inspectTls: async () => goodTls, wordpressVersions: versionsOk, now: () => NOW });
   assert.ok(!log.some((u) => u.includes("wixsite")), "the off-site host was never requested");
   assert.equal(r.redirects.stopped.https.offsite, true);
-  assert.equal(r.redirects.stopped.https.location, "https://acmedental.wixsite.com/home");
+  assert.equal(r.redirects.stopped.https.location, "https://example.wixsite.com/home");
 });
 
 /* ------------------------- input validation ---------------------- */
 
 test("target validation: schemes, IP literals, ports and userinfo", () => {
-  assert.deepEqual(parseWebsiteTarget("acme.com"), { host: "acme.com" });
-  assert.deepEqual(parseWebsiteTarget("https://www.Acme.com/contact?x=1#top"), { host: "acme.com" }, "path, query and www dropped");
-  assert.deepEqual(parseWebsiteTarget("http://acme.com"), { host: "acme.com" });
-  assert.deepEqual(parseWebsiteTarget("acme.com:443"), { host: "acme.com" });
-  for (const bad of ["", "ftp://acme.com", "file:///etc/passwd", "javascript:alert(1)", "https://user:pw@acme.com", "user@acme.com", "acme.com:8080", "https://acme.com:8443/",
+  assert.deepEqual(parseWebsiteTarget("example.com"), { host: "example.com" });
+  assert.deepEqual(parseWebsiteTarget("https://www.Example.com/contact?x=1#top"), { host: "example.com" }, "path, query and www dropped");
+  assert.deepEqual(parseWebsiteTarget("http://example.com"), { host: "example.com" });
+  assert.deepEqual(parseWebsiteTarget("example.com:443"), { host: "example.com" });
+  for (const bad of ["", "ftp://example.com", "file:///etc/passwd", "javascript:alert(1)", "https://user:pw@example.com", "user@example.com", "example.com:8080", "https://example.com:8443/",
     "127.0.0.1", "10.0.0.1", "http://169.254.169.254/", "http://[::1]/", "http://2130706433/", "localhost", "http://localhost/", "printer.local"]) {
     assert.ok(parseWebsiteTarget(bad).error, `${bad} must be refused`);
   }
@@ -399,7 +414,7 @@ test("target validation: schemes, IP literals, ports and userinfo", () => {
 
 /* --------------------------- full scan --------------------------- */
 
-const acmeDns = { a: { "acmedental.com": ["93.184.216.34"], "www.acmedental.com": ["93.184.216.34"] } };
+const siteDns = { a: { "example.com": ["93.184.216.34"], "www.example.com": ["93.184.216.34"] } };
 function fakeFetchPage(routes, log = []) {
   return async (url) => {
     log.push(url);
@@ -419,19 +434,19 @@ const strongHeaders = {
 
 test("a well-configured site gets an A; every check has a status and a weight", async () => {
   const fetchPage = fakeFetchPage({
-    "http://acmedental.com/": { status: 301, headers: { location: "https://acmedental.com/" } },
-    "https://acmedental.com/": { status: 301, headers: { location: "https://www.acmedental.com/", ...strongHeaders } },
-    "https://www.acmedental.com/": { status: 200, headers: strongHeaders, body: "<html><img src=/a.png></html>" },
+    "http://example.com/": { status: 301, headers: { location: "https://example.com/" } },
+    "https://example.com/": { status: 301, headers: { location: "https://www.example.com/", ...strongHeaders } },
+    "https://www.example.com/": { status: 200, headers: strongHeaders, body: "<html><img src=/a.png></html>" },
   });
-  const r = await runWebsiteScan("https://acmedental.com/some/path", {
-    resolver: fakeResolver(acmeDns),
+  const r = await runWebsiteScan("https://example.com/some/path", {
+    resolver: fakeResolver(siteDns),
     fetchPage,
     inspectTls: async () => goodTls,
     wordpressVersions: () => assert.fail("not WordPress"),
     now: () => NOW,
   });
-  assert.equal(r.target, "acmedental.com");
-  assert.equal(r.finalUrl, "https://www.acmedental.com/");
+  assert.equal(r.target, "example.com");
+  assert.equal(r.finalUrl, "https://www.example.com/");
   assert.equal(r.grade, "A");
   assert.equal(r.score, 100);
   assert.equal(r.coverage, 100);
@@ -445,10 +460,10 @@ test("a well-configured site gets an A; every check has a status and a weight", 
 
 test("a bare HTTP site with an old WordPress grades badly and lists fixes", async () => {
   const fetchPage = fakeFetchPage({
-    "http://acmedental.com/": { status: 200, headers: { server: "Apache/2.4.29", "set-cookie": ["PHPSESSID=abc; path=/"] }, body: `<meta name="generator" content="WordPress 5.8.1">` },
+    "http://example.com/": { status: 200, headers: { server: "Apache/2.4.29", "set-cookie": ["PHPSESSID=abc; path=/"] }, body: `<meta name="generator" content="WordPress 5.8.1">` },
   });
-  const r = await runWebsiteScan("acmedental.com", {
-    resolver: fakeResolver(acmeDns),
+  const r = await runWebsiteScan("example.com", {
+    resolver: fakeResolver(siteDns),
     fetchPage,
     inspectTls: async () => ({ ok: false, error: "ECONNREFUSED" }),
     wordpressVersions: versionsOk,
@@ -464,7 +479,7 @@ test("a bare HTTP site with an old WordPress grades badly and lists fixes", asyn
 });
 
 test("an unreachable site gets no grade", async () => {
-  const r = await runWebsiteScan("acmedental.com", { resolver: fakeResolver(), fetchPage: fakeFetchPage({}), inspectTls: async () => ({ ok: false, error: "ENOTFOUND" }), now: () => NOW });
+  const r = await runWebsiteScan("example.com", { resolver: fakeResolver(), fetchPage: fakeFetchPage({}), inspectTls: async () => ({ ok: false, error: "ENOTFOUND" }), now: () => NOW });
   assert.equal(r.grade, null);
   assert.equal(r.score, null);
 });
@@ -476,10 +491,10 @@ test("runWebsiteScan refuses bad input without touching the network", async () =
 
 /* ----------------------------- grade caps ------------------------ */
 
-const strongPage = (url = "https://acmedental.com/") => ({ status: 200, headers: strongHeaders, body: "<html></html>", url });
+const strongPage = (url = "https://example.com/") => ({ status: 200, headers: strongHeaders, body: "<html></html>", url });
 async function scanWith(routes, { tls = goodTls, wwwTls } = {}) {
-  return runWebsiteScan("acmedental.com", {
-    resolver: fakeResolver(acmeDns),
+  return runWebsiteScan("example.com", {
+    resolver: fakeResolver(siteDns),
     fetchPage: fakeFetchPage(routes),
     inspectTls: async (h) => (h.startsWith("www.") && wwwTls ? wwwTls : tls),
     wordpressVersions: versionsOk,
@@ -488,13 +503,13 @@ async function scanWith(routes, { tls = goodTls, wwwTls } = {}) {
 }
 
 test("caps: no HTTPS → F even with an otherwise decent score", async () => {
-  const r = await scanWith({ "http://acmedental.com/": strongPage("http://acmedental.com/") }, { tls: { ok: false, error: "ECONNREFUSED" } });
+  const r = await scanWith({ "http://example.com/": strongPage("http://example.com/") }, { tls: { ok: false, error: "ECONNREFUSED" } });
   assert.equal(r.grade, "F");
   assert.ok(r.data.cappedBy.some((c) => c.check === "https" && c.maxGrade === "F"));
 });
 
 test("caps: invalid / expired certificate → F; the score number is the uncapped weighted value", async () => {
-  const routes = { "https://acmedental.com/": strongPage(), "http://acmedental.com/": { status: 301, headers: { location: "https://acmedental.com/" } } };
+  const routes = { "https://example.com/": strongPage(), "http://example.com/": { status: 301, headers: { location: "https://example.com/" } } };
   const bad = { ...goodTls, authorized: false, authorizationError: "CERT_HAS_EXPIRED" };
   const r = await scanWith(routes, { tls: bad });
   assert.equal(r.grade, "F");
@@ -505,16 +520,16 @@ test("caps: invalid / expired certificate → F; the score number is the uncappe
 
 test("caps: an https → http downgrade → F", async () => {
   const r = await scanWith({
-    "https://acmedental.com/": { status: 301, headers: { location: "http://www.acmedental.com/" } },
-    "http://www.acmedental.com/": { status: 200, headers: {}, body: "" },
-    "http://acmedental.com/": { status: 301, headers: { location: "https://acmedental.com/" } },
+    "https://example.com/": { status: 301, headers: { location: "http://www.example.com/" } },
+    "http://www.example.com/": { status: 200, headers: {}, body: "" },
+    "http://example.com/": { status: 301, headers: { location: "https://example.com/" } },
   });
   assert.equal(r.grade, "F");
   assert.ok(r.data.cappedBy.some((c) => /redirects back to plain HTTP/.test(c.reason)));
 });
 
 test("caps: HTTP not redirecting to HTTPS → at most C, with the reason on the report", async () => {
-  const r = await scanWith({ "https://acmedental.com/": strongPage(), "http://acmedental.com/": { status: 200, headers: {}, body: "" } });
+  const r = await scanWith({ "https://example.com/": strongPage(), "http://example.com/": { status: 200, headers: {}, body: "" } });
   assert.equal(r.data.uncappedGrade, "A");
   assert.equal(r.grade, "C");
   assert.deepEqual(r.data.cappedBy.map((c) => c.maxGrade), ["C"]);
@@ -522,7 +537,7 @@ test("caps: HTTP not redirecting to HTTPS → at most C, with the reason on the 
 });
 
 test("caps: none on a well-configured site; applyGradeCaps keeps the worse grade and leaves null alone", async () => {
-  const r = await scanWith({ "https://acmedental.com/": strongPage(), "http://acmedental.com/": { status: 301, headers: { location: "https://acmedental.com/" } } });
+  const r = await scanWith({ "https://example.com/": strongPage(), "http://example.com/": { status: 301, headers: { location: "https://example.com/" } } });
   assert.equal(r.grade, "A");
   assert.equal(r.data.cappedBy, null);
   const redirectWarn = [{ id: "https-redirect", status: "warn", data: { code: "no-redirect" } }];
@@ -547,8 +562,8 @@ beforeEach(() => {
   events = [];
   stopAudit = onAudit((e) => events.push(e));
   setWebsiteDepsForTests({
-    resolver: fakeResolver(acmeDns),
-    fetchPage: fakeFetchPage({ "https://acmedental.com/": { status: 200, headers: { "strict-transport-security": "max-age=31536000" }, body: "<html>SECRET-HTML</html>" } }),
+    resolver: fakeResolver(siteDns),
+    fetchPage: fakeFetchPage({ "https://example.com/": { status: 200, headers: { "strict-transport-security": "max-age=31536000" }, body: "<html>SECRET-HTML</html>" } }),
     inspectTls: async () => goodTls,
     wordpressVersions: versionsOk,
   });
@@ -575,19 +590,19 @@ async function callWebsite(target, cookie, method = "GET") {
 const sessionCookie = () => `ohc_tech=${encodeSession(newSession(), SECRET)}`;
 
 test("/api/website: 401 without a session", async () => {
-  const r = await callWebsite("acmedental.com", null);
+  const r = await callWebsite("example.com", null);
   assert.equal(r.status, 401);
   assert.equal(events.length, 0);
 });
 
 test("/api/website: a scan is audited as website_scan with a summary only, and is no-store", async () => {
-  const r = await callWebsite("acmedental.com", sessionCookie());
+  const r = await callWebsite("example.com", sessionCookie());
   assert.equal(r.status, 200);
   assert.equal(r.headers["cache-control"], "no-store");
-  assert.equal(r.json.target, "acmedental.com");
+  assert.equal(r.json.target, "example.com");
   const e = events.find((x) => x.event === "website_scan");
   assert.ok(e);
-  assert.equal(e.domain, "acmedental.com");
+  assert.equal(e.domain, "example.com");
   assert.ok(e.sid && e.ip === "203.0.113.9" && e.ua === "test-agent");
   assert.deepEqual(Object.keys(e.data).sort(), ["counts", "durationMs", "grade", "score"]);
   assert.ok(!JSON.stringify(e).includes("SECRET-HTML"), "no page HTML in the audit log");
@@ -596,20 +611,20 @@ test("/api/website: a scan is audited as website_scan with a summary only, and i
 
 test("/api/website: bad targets are 400 and private addresses are refused", async () => {
   const cookie = sessionCookie();
-  for (const t of ["localhost", "127.0.0.1", "10.0.0.1", "http://169.254.169.254/", "file:///etc/passwd", "acmedental.com:8080"]) {
+  for (const t of ["localhost", "127.0.0.1", "10.0.0.1", "http://169.254.169.254/", "file:///etc/passwd", "example.com:8080"]) {
     assert.equal((await callWebsite(t, cookie)).status, 400, t);
   }
 });
 
 test("/api/website: one site can be checked at most 3 times a minute (429)", async () => {
   const cookie = sessionCookie();
-  for (let i = 0; i < 3; i++) assert.equal((await callWebsite("https://www.acmedental.com/x", cookie)).status, 200);
-  const r = await callWebsite("acmedental.com", sessionCookie());
+  for (let i = 0; i < 3; i++) assert.equal((await callWebsite("https://www.example.com/x", cookie)).status, 200);
+  const r = await callWebsite("example.com", sessionCookie());
   assert.equal(r.status, 429, "the cooldown is per site, across sessions");
   assert.ok(Number(r.headers["retry-after"]) > 0);
-  assert.equal((await callWebsite("otherdental.com", cookie)).status, 200, "other sites are unaffected");
+  assert.equal((await callWebsite("example.net", cookie)).status, 200, "other sites are unaffected");
 });
 
 test("/api/website: only GET", async () => {
-  assert.equal((await callWebsite("acmedental.com", sessionCookie(), "POST")).status, 405);
+  assert.equal((await callWebsite("example.com", sessionCookie(), "POST")).status, 405);
 });

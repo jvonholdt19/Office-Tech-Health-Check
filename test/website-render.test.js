@@ -117,7 +117,7 @@ const tick = async () => {
 
 test("the report shows the disclaimer right after the print header, and the platform choice is kept per domain", async () => {
   const { store, byId } = setupDom();
-  const reports = { "acmedental.com": await reportFor("acmedental.com"), "otherdental.com": await reportFor("otherdental.com") };
+  const reports = { "example.com": await reportFor("example.com"), "example.net": await reportFor("example.net") };
   globalThis.fetch = async (path) => {
     if (path === "/api/session") return { status: 200, ok: true, json: async () => ({ authenticated: true }) };
     const target = decodeURIComponent(path.split("target=")[1]);
@@ -127,15 +127,15 @@ test("the report shows the disclaimer right after the print header, and the plat
   await tick();
   assert.equal(DISCLAIMER, "Back up your site and test changes first. Your web host or developer should apply these changes.");
 
-  // The technician picked WordPress for acmedental.com on an earlier visit.
-  store.set("ohc-fix-platform:acmedental.com", "wordpress");
+  // The technician picked WordPress for example.com on an earlier visit.
+  store.set("ohc-fix-platform:example.com", "wordpress");
   const scan = async (domain) => {
     byId("target").value = domain;
     byId("website-form").listeners.submit({ preventDefault() {} });
     await tick();
   };
 
-  await scan("acmedental.com");
+  await scan("example.com");
   const root = byId("website-report");
   const kids = root.children.filter((c) => c instanceof FakeEl);
   assert.equal(kids[0].className, "print-header");
@@ -147,7 +147,7 @@ test("the report shows the disclaimer right after the print header, and the plat
   assert.ok(visible.length > 0 && visible.every((p) => p === "wordpress"));
   assert.match(byId("print-platform").textContent, /WordPress/);
 
-  await scan("otherdental.com");
+  await scan("example.net");
   assert.equal(byId("platform-select").value, "", "a different site starts with all platforms");
   assert.ok(root.querySelectorAll(".platform").every((p) => !p.hidden));
   assert.equal(byId("print-platform").textContent, "");
@@ -157,6 +157,6 @@ test("the report shows the disclaimer right after the print header, and the plat
   const select = byId("platform-select");
   select.value = "nginx";
   select.listeners.change();
-  assert.equal(store.get("ohc-fix-platform:otherdental.com"), "nginx");
-  assert.equal(store.get("ohc-fix-platform:acmedental.com"), "wordpress");
+  assert.equal(store.get("ohc-fix-platform:example.net"), "nginx");
+  assert.equal(store.get("ohc-fix-platform:example.com"), "wordpress");
 });

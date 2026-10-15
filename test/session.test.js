@@ -134,7 +134,7 @@ test("fails closed: short SESSION_SECRET, missing Supabase, missing code", async
   process.env.SESSION_SECRET = SECRET;
   setStoreForTests(null);
   assert.equal((await login(CODE)).status, 503);
-  assert.equal((await call(planHandler, req("GET", { url: "/api/plan?domain=acme.com", headers: { cookie: `ohc_tech=${encodeSession(newSession(), SECRET)}` } }))).status, 503);
+  assert.equal((await call(planHandler, req("GET", { url: "/api/plan?domain=example.com", headers: { cookie: `ohc_tech=${encodeSession(newSession(), SECRET)}` } }))).status, 503);
   setStoreForTests(store);
   delete process.env.TECH_ACCESS_CODE;
   assert.equal((await login(CODE)).status, 503);

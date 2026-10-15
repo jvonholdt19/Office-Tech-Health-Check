@@ -1,11 +1,11 @@
-; Domain: oldoffice.com
+; Domain: old.example.net
 ; Exported (y-m-d hh:mm:ss): 2026-10-08 10:04:11
 ;
 ; This file is intended for use for informational and archival
 ; purposes ONLY and MUST be edited before use on a production
 ; DNS server.
 ;
-$ORIGIN oldoffice.com.
+$ORIGIN old.example.net.
 
 ; SOA Record
 @	3600	 IN 	SOA	ns55.domaincontrol.com.	dns.jomax.net. (

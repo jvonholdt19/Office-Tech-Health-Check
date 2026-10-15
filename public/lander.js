@@ -42,7 +42,7 @@ function render(r) {
 $("preview-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const domain = $("preview-domain").value.trim();
-  if (!domain) return showError("Enter your business domain, like yourbusiness.com.");
+  if (!domain) return showError("Enter your business domain, like example.com.");
   showError("");
   $("preview-result").hidden = true;
   $("preview-loading").hidden = false;

@@ -26,7 +26,7 @@ import { onAudit } from "../lib/audit.js";
 import { encodeSession, newSession } from "../lib/session.js";
 import { fakeResolver, NOW } from "./fakes.js";
 
-const D = "acmedental.com";
+const D = "example.com";
 const now = { now: () => NOW };
 const inDays = (n) => new Date(NOW.getTime() + n * 864e5 + 3600e3).toISOString();
 const rdap = ({ expiry = inDays(400), status = ["client transfer prohibited"], secureDNS } = {}) => ({
@@ -34,7 +34,7 @@ const rdap = ({ expiry = inDays(400), status = ["client transfer prohibited"], s
   data: { events: expiry ? [{ eventAction: "expiration", eventDate: expiry }] : [], status, ...(secureDNS ? { secureDNS } : {}) },
 });
 const soaAnswer = (serial, { aa = true, rcode = 0 } = {}) => ({ ok: true, aa, rcode, tc: false, answers: aa && rcode === 0 ? [{ type: TYPE.SOA, data: { serial } }] : [] });
-const SOA = { nsname: "ns1.host.net", hostmaster: "h.host.net", serial: 5, refresh: 7200, retry: 900, expire: 1209600, minttl: 3600 };
+const SOA = { nsname: "ns1.host.example.net", hostmaster: "h.host.example.net", serial: 5, refresh: 7200, retry: 900, expire: 1209600, minttl: 3600 };
 
 /* ------------------------------ expiry ------------------------------ */
 
@@ -85,19 +85,19 @@ test("DNSSEC: unsigned is info (weight 0); signed with keys passes; signed witho
 const nsResolver = (ns, a) => fakeResolver({ ns: { [D]: ns }, a });
 
 test("nameservers: one NS fails", async () => {
-  const probe = await probeNameservers(D, { resolver: nsResolver(["ns1.host.net"], { "ns1.host.net": ["93.184.216.1"] }), querySoa: async () => soaAnswer(5) });
+  const probe = await probeNameservers(D, { resolver: nsResolver(["ns1.host.example.net"], { "ns1.host.example.net": ["93.184.216.1"] }), querySoa: async () => soaAnswer(5) });
   const r = checkNameservers(probe);
   assert.equal(r.status, "fail");
   assert.equal(r.data.code, "too-few");
 });
 
 test("nameservers: a non-resolving NS fails (and caps at D); a lame NS warns; healthy passes with notes", async () => {
-  const unres = checkNameservers(await probeNameservers(D, { resolver: nsResolver(["ns1.host.net", "ns2.gone.net"], { "ns1.host.net": ["93.184.216.1"] }), querySoa: async () => soaAnswer(5) }));
+  const unres = checkNameservers(await probeNameservers(D, { resolver: nsResolver(["ns1.host.example.net", "ns2.gone.example.net"], { "ns1.host.example.net": ["93.184.216.1"] }), querySoa: async () => soaAnswer(5) }));
   assert.equal(unres.status, "fail");
   assert.equal(unres.data.code, "ns-unresolvable");
-  assert.deepEqual(unres.data.nameservers, ["ns2.gone.net"]);
+  assert.deepEqual(unres.data.nameservers, ["ns2.gone.example.net"]);
 
-  const resolver = nsResolver(["ns1.host.net", "ns2.host.net"], { "ns1.host.net": ["93.184.216.1"], "ns2.host.net": ["93.184.216.2"] });
+  const resolver = nsResolver(["ns1.host.example.net", "ns2.host.example.net"], { "ns1.host.example.net": ["93.184.216.1"], "ns2.host.example.net": ["93.184.216.2"] });
   const lame = checkNameservers(await probeNameservers(D, { resolver, querySoa: async (ip) => (ip.endsWith(".2") ? soaAnswer(5, { aa: false }) : soaAnswer(5)) }));
   assert.equal(lame.status, "warn");
   assert.equal(lame.data.code, "lame");
@@ -107,12 +107,12 @@ test("nameservers: a non-resolving NS fails (and caps at D); a lame NS warns; he
   const ok = checkNameservers(await probeNameservers(D, { resolver, querySoa: async () => soaAnswer(5) }));
   assert.equal(ok.status, "pass");
   assert.match(ok.detail, /one \/24/);
-  assert.match(ok.detail, /host\.net/);
+  assert.match(ok.detail, /run by example\.net/);
 });
 
 test("nameservers: private NS addresses are never queried", async () => {
   const asked = [];
-  const resolver = nsResolver(["ns1.host.net", "ns2.evil.net"], { "ns1.host.net": ["93.184.216.1"], "ns2.evil.net": ["10.0.0.53", "169.254.169.254"] });
+  const resolver = nsResolver(["ns1.host.example.net", "ns2.evil.example.net"], { "ns1.host.example.net": ["93.184.216.1"], "ns2.evil.example.net": ["10.0.0.53", "169.254.169.254"] });
   const r = checkNameservers(await probeNameservers(D, { resolver, querySoa: async (ip) => (asked.push(ip), soaAnswer(5)) }));
   assert.deepEqual(asked, ["93.184.216.1"]);
   assert.equal(r.data.code, "ns-unresolvable", "an NS with only private addresses is treated as unusable");
@@ -122,7 +122,7 @@ test("nameservers: private NS addresses are never queried", async () => {
 /* -------------------------------- SOA ------------------------------- */
 
 test("SOA: serial mismatch warns; out-of-range timers are info only; missing SOA warns", async () => {
-  const resolver = nsResolver(["ns1.host.net", "ns2.host.net"], { "ns1.host.net": ["93.184.216.1"], "ns2.host.net": ["93.184.216.2"] });
+  const resolver = nsResolver(["ns1.host.example.net", "ns2.host.example.net"], { "ns1.host.example.net": ["93.184.216.1"], "ns2.host.example.net": ["93.184.216.2"] });
   const probe = await probeNameservers(D, { resolver, querySoa: async (ip) => soaAnswer(ip.endsWith(".1") ? 2026100101 : 2026093001) });
   const mismatch = checkSoa({ ok: true, soa: SOA }, probe);
   assert.equal(mismatch.status, "warn");
@@ -138,7 +138,7 @@ test("SOA: serial mismatch warns; out-of-range timers are info only; missing SOA
 
 test("CAA: none is info, present passes and lists issuers", () => {
   assert.equal(checkCaa({ ok: false, notFound: true }).status, "info");
-  const r = checkCaa({ ok: true, records: [{ critical: 0, issue: "letsencrypt.org" }, { critical: 0, iodef: "mailto:x@acmedental.com" }] });
+  const r = checkCaa({ ok: true, records: [{ critical: 0, issue: "letsencrypt.org" }, { critical: 0, iodef: "mailto:x@example.com" }] });
   assert.equal(r.status, "pass");
   assert.match(r.summary, /letsencrypt\.org/);
 });
@@ -149,10 +149,10 @@ test("MX: null MX is info; MX to a private IP fails; unresolvable MX fails; heal
   const nullMx = await lookupMx(D, { resolver: fakeResolver({ mx: { [D]: [{ exchange: "", priority: 0 }] } }) });
   assert.equal(checkMx(nullMx).data.code, "null-mx");
   assert.equal(checkMx(nullMx).status, "info");
-  const priv = checkMx(await lookupMx(D, { resolver: fakeResolver({ mx: { [D]: [{ exchange: "mail.acmedental.com", priority: 10 }] }, a: { "mail.acmedental.com": ["192.168.1.20"] } }) }));
+  const priv = checkMx(await lookupMx(D, { resolver: fakeResolver({ mx: { [D]: [{ exchange: "mail.example.com", priority: 10 }] }, a: { "mail.example.com": ["192.168.1.20"] } }) }));
   assert.equal(priv.status, "fail");
   assert.equal(priv.data.code, "mx-private");
-  const gone = checkMx(await lookupMx(D, { resolver: fakeResolver({ mx: { [D]: [{ exchange: "old.mailhost.net", priority: 10 }] } }) }));
+  const gone = checkMx(await lookupMx(D, { resolver: fakeResolver({ mx: { [D]: [{ exchange: "old.mailhost.example.net", priority: 10 }] } }) }));
   assert.equal(gone.data.code, "mx-unresolvable");
   const ok = checkMx(await lookupMx(D, { resolver: fakeResolver({ mx: { [D]: [{ exchange: "aspmx.l.google.com", priority: 1 }] }, a: { "aspmx.l.google.com": ["142.250.1.26"] } }) }));
   assert.equal(ok.status, "pass");
@@ -164,7 +164,7 @@ test("MX: null MX is info; MX to a private IP fails; unresolvable MX fails; heal
 test("email authentication: presence only, with a link to the full Email Security Check", () => {
   const ok = checkEmailAuth(D, { ok: true, spf: true, dmarc: true });
   assert.equal(ok.status, "pass");
-  assert.equal(ok.data.link.href, "/tools/email?d=acmedental.com");
+  assert.equal(ok.data.link.href, "/tools/email?d=example.com");
   assert.equal(checkEmailAuth(D, { ok: true, spf: false, dmarc: true }).data.code, "missing-spf");
   assert.equal(checkEmailAuth(D, { ok: true, spf: true, dmarc: false }).data.code, "missing-dmarc");
   assert.equal(checkEmailAuth(D, { ok: true, spf: false, dmarc: false }).data.code, "missing-both");
@@ -174,15 +174,15 @@ test("email authentication: presence only, with a link to the full Email Securit
 /* -------------------------- dangling CNAME -------------------------- */
 
 test("dangling CNAME: azurewebsites.net target with NXDOMAIN fails; a non-matching CNAME that resolves is fine", async () => {
-  const takeover = checkDanglingCname(await lookupCnames(D, { resolver: fakeResolver({ cname: { "www.acmedental.com": ["acme-old.azurewebsites.net"] } }) }));
+  const takeover = checkDanglingCname(await lookupCnames(D, { resolver: fakeResolver({ cname: { "www.example.com": ["example-old.azurewebsites.net"] } }) }));
   assert.equal(takeover.status, "fail");
   assert.equal(takeover.data.code, "possible-takeover");
   assert.match(takeover.summary, /possible takeover/);
-  const fine = checkDanglingCname(await lookupCnames(D, { resolver: fakeResolver({ cname: { "www.acmedental.com": ["sites.wixdns.net"] }, a: { "sites.wixdns.net": ["34.149.87.45"] } }) }));
+  const fine = checkDanglingCname(await lookupCnames(D, { resolver: fakeResolver({ cname: { "www.example.com": ["sites.wixdns.net"] }, a: { "sites.wixdns.net": ["34.149.87.45"] } }) }));
   assert.equal(fine.status, "pass");
-  const alive = checkDanglingCname(await lookupCnames(D, { resolver: fakeResolver({ cname: { "shop.acmedental.com": ["acme.azurewebsites.net"] }, a: { "acme.azurewebsites.net": ["20.1.2.3"] } }) }));
+  const alive = checkDanglingCname(await lookupCnames(D, { resolver: fakeResolver({ cname: { "shop.example.com": ["example.azurewebsites.net"] }, a: { "example.azurewebsites.net": ["20.1.2.3"] } }) }));
   assert.equal(alive.status, "pass", "a takeover-prone service that still exists is fine");
-  const broken = checkDanglingCname(await lookupCnames(D, { resolver: fakeResolver({ cname: { "blog.acmedental.com": ["old-blog.example-host.net"] } }) }));
+  const broken = checkDanglingCname(await lookupCnames(D, { resolver: fakeResolver({ cname: { "blog.example.com": ["old-blog.example.net"] } }) }));
   assert.equal(broken.data.code, "dangling");
   assert.equal(checkDanglingCname(await lookupCnames(D, { resolver: fakeResolver() })).status, "pass");
 });
@@ -191,8 +191,8 @@ test("dangling CNAME: azurewebsites.net target with NXDOMAIN fails; a non-matchi
 
 const scanDeps = (over = {}) => ({
   resolver: fakeResolver({
-    ns: { [D]: ["ns1.host.net", "ns2.host.net"] },
-    a: { "ns1.host.net": ["93.184.216.1"], "ns2.host.net": ["93.184.216.2"], "aspmx.l.google.com": ["142.250.1.26"] },
+    ns: { [D]: ["ns1.host.example.net", "ns2.host.example.net"] },
+    a: { "ns1.host.example.net": ["93.184.216.1"], "ns2.host.example.net": ["93.184.216.2"], "aspmx.l.google.com": ["142.250.1.26"] },
     mx: { [D]: [{ exchange: "aspmx.l.google.com", priority: 1 }] },
     soa: { [D]: SOA },
     caa: { [D]: [{ critical: 0, issue: "letsencrypt.org" }] },
@@ -216,7 +216,7 @@ test("a healthy domain gets an A; redemption caps at F; an unresolvable NS caps 
   assert.equal(red.data.cappedBy[0].check, "domain-status");
   assert.notEqual(red.data.uncappedGrade, "F", "the cap, not the score, made it F");
 
-  const ns = await runDomainScan(D, scanDeps({ dns: { ns: { [D]: ["ns1.host.net", "ns2.gone.net"] } } }));
+  const ns = await runDomainScan(D, scanDeps({ dns: { ns: { [D]: ["ns1.host.example.net", "ns2.gone.example.net"] } } }));
   assert.equal(ns.data.cappedBy[0].maxGrade, "D");
   assert.ok(["D", "F"].includes(ns.grade));
   assert.equal(applyDomainCaps("A", [{ id: "domain-expiry", data: { code: "expired" } }]).grade, "F");
@@ -224,21 +224,21 @@ test("a healthy domain gets an A; redemption caps at F; an unresolvable NS caps 
 });
 
 test("a domain that isn't in DNS or at the registry gets a clear error instead of a graded report", async () => {
-  const r = await runDomainScan("acmedentl.com", { ...scanDeps(), fetchRdap: async () => ({ ok: false, error: "HTTP 404", status: 404 }) });
+  const r = await runDomainScan("missing.example.net", { ...scanDeps(), fetchRdap: async () => ({ ok: false, error: "HTTP 404", status: 404 }) });
   assert.equal(r.notFound, true);
-  assert.match(r.error, /couldn't find acmedentl\.com/);
+  assert.match(r.error, /couldn't find missing\.example\.net/);
 });
 
 test("the report carries guides only for warn/fail checks", async () => {
   const r = await runDomainScan(D, scanDeps({ rdap: rdap({ expiry: inDays(30), status: ["active"] }), dns: { txt: {} } }));
   for (const c of r.checks) assert.equal(Boolean(c.guide), c.status === "warn" || c.status === "fail", c.id);
-  assert.ok(r.checks.find((c) => c.id === "domain-expiry").guide.message.includes("acmedental.com"));
+  assert.ok(r.checks.find((c) => c.id === "domain-expiry").guide.message.includes("example.com"));
 });
 
 /* ---------------------------- DNS wire ------------------------------ */
 
 test("DNS wire format: query has RD off and EDNS; SOA answers with name compression are parsed", () => {
-  const { id, packet } = buildQuery("acmedental.com", TYPE.SOA, 0x1234);
+  const { id, packet } = buildQuery("example.com", TYPE.SOA, 0x1234);
   assert.equal(packet.readUInt16BE(0), 0x1234);
   assert.equal(packet.readUInt16BE(2) & 0x0100, 0, "recursion desired is off");
   assert.equal(packet.readUInt16BE(10), 1, "EDNS OPT record");
@@ -256,7 +256,7 @@ test("DNS wire format: query has RD off and EDNS; SOA answers with name compress
   assert.equal(r.id, id);
   assert.equal(r.aa, true);
   assert.equal(r.rcode, 0);
-  assert.equal(r.answers[0].data.mname, "ns1.acmedental.com");
+  assert.equal(r.answers[0].data.mname, "ns1.example.com");
   assert.equal(r.answers[0].data.serial, 0x78c10e51);
   assert.equal(r.answers[0].data.refresh, 7200);
   assert.equal(r.answers[0].data.minimum, 3600);

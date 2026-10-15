@@ -1,6 +1,7 @@
 // Fix Plan Builder (private). Renders /api/plan output as a client proposal and a
 // technician checklist. All text is inserted with textContent, never innerHTML, because
 // DNS records come from the prospect's domain and must be treated as untrusted.
+import { showSignedInChrome } from "./tech-session.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -49,6 +50,7 @@ function unlockUI(on) {
   $("gate").hidden = on;
   $("builder").hidden = !on;
   $("lock-btn").hidden = !on;
+  showSignedInChrome(on);
   if (on) $("domain").focus();
 }
 

@@ -14,7 +14,7 @@ const K512 = rsa(512);
 const K1024 = rsa(1024);
 const K2048 = rsa(2048);
 const google = { key: "google", name: "Google Workspace" };
-const d = "acme.com";
+const d = "example.com";
 
 test("RSA key length is read from the key itself and graded (RFC 8301)", () => {
   assert.deepEqual([analyzeDkimKey(`v=DKIM1; k=rsa; p=${K512}`).status, analyzeDkimKey(`v=DKIM1; k=rsa; p=${K512}`).bits], ["fail", 512]);

@@ -14,7 +14,7 @@ export { passcodeMatches };
 
 // Private endpoint (technician session cookie from POST /api/session; locked without
 // SESSION_SECRET and Supabase):
-//   GET  /api/plan?domain=acme.com                → plan from public DNS
+//   GET  /api/plan?domain=example.com                → plan from public DNS
 //   POST /api/plan { domain, zone: { text, filename }, confirmExport? } → plan from the client's exported zone
 // Both include a dry run of the day-one changes. Uploaded records are never stored.
 

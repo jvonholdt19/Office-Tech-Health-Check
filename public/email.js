@@ -159,7 +159,7 @@ async function scan(rawDomain) {
 els.form.addEventListener("submit", (e) => {
   e.preventDefault();
   const value = els.input.value.trim();
-  if (!value) return showError("Enter your business domain, like yourbusiness.com.");
+  if (!value) return showError("Enter your business domain, like example.com.");
   scan(value);
 });
 
@@ -181,7 +181,7 @@ $("scan-another").addEventListener("click", () => {
   els.input.focus();
 });
 
-// Links like /tools/email?d=acme.com (and old /?d= or /?domain= links, redirected here by vercel.json)
+// Links like /tools/email?d=example.com (and old /?d= or /?domain= links, redirected here by vercel.json)
 // pre-fill the domain once signed in. Like the Website Security Check, a link never starts a scan
 // by itself: the technician presses "Run check".
 initGate({

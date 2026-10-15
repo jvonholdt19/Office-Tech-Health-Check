@@ -1,31 +1,33 @@
-/* Technician tools dashboard and tool pages. Uses the variables from styles.css. */
+/* Technician tools dashboard and tool pages. Uses the tokens from brand.css. */
 
 .dashboard { padding: 40px 0 64px; }
 .dashboard h1 { font-size: 32px; }
 .tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-top: 24px; }
 .tool-card {
   display: block; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 18px 20px; color: var(--text); text-decoration: none; box-shadow: var(--shadow);
+  padding: 20px; color: var(--text); text-decoration: none; box-shadow: var(--shadow);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
-a.tool-card:hover { border-color: var(--accent); }
-a.tool-card:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+a.tool-card:hover { border-color: var(--accent); background: var(--surface-2); }
+a.tool-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.tool-icon { display: block; color: var(--accent); margin-bottom: 12px; }
 .tool-card h2 { margin: 0; font-size: 17px; }
 .tool-card p { margin: 6px 0 0; color: var(--muted); font-size: 15px; }
-.tool-card.disabled { opacity: 0.6; box-shadow: none; background: var(--surface-2); cursor: default; }
+/* "Coming soon" cards: flat, no hover, muted icon; the text itself stays at full contrast. */
+.tool-card.disabled { background: transparent; border-style: dashed; cursor: default; }
+.tool-card.disabled .tool-icon { color: var(--muted); }
 .tool-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .soon-tag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--info); background: var(--info-bg); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
 
 .tool-page { padding: 32px 0 64px; }
 .tool-page h1 { font-size: 30px; }
-.back-link { display: inline-block; margin-bottom: 12px; color: var(--accent); text-decoration: none; font-weight: 600; font-size: 15px; }
-.back-link:hover { text-decoration: underline; }
 .redirect-path { margin: 16px 0 0; color: var(--muted); font-size: 14px; word-break: break-all; }
-.redirect-path code { font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.redirect-path code { font: 13px/1.5 var(--mono); overflow-wrap: anywhere; }
 .website-report { margin-top: 28px; }
 .grade-cap { margin: 14px 0 0; padding: 10px 14px; border-radius: 10px; background: var(--fail-bg); color: var(--fail); font-weight: 600; font-size: 15px; }
 
 /* "How to fix" guides (Website Security Check) */
-.badge { margin-left: auto; font-size: 12px; font-weight: 650; padding: 2px 9px; border-radius: 999px; color: var(--info); background: var(--info-bg); white-space: nowrap; }
+.badge { margin-left: auto; font-size: 12px; font-weight: 650; padding: 2px 9px; border-radius: 999px; color: var(--info); background: var(--info-bg); max-width: 100%; }
 .badge[data-difficulty="advanced"] { color: var(--warn); background: var(--warn-bg); }
 .why { margin: 4px 0 6px; }
 .fix-guide { margin: 10px 0 4px; border: 1px solid var(--border); border-radius: 10px; padding: 0 14px; background: var(--surface); }
@@ -44,18 +46,18 @@ a.tool-card:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 
 .platform-note { color: var(--muted); font-size: 14px; margin: 0 0 10px; }
 .snippet-wrap { position: relative; margin: 0 0 10px; }
 .snippet, .message {
-  margin: 0; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
-  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere;
+  margin: 0; padding: 10px 12px; background: var(--code-bg); color: var(--code-text); border: 1px solid var(--border); border-radius: 8px;
+  font: 13px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere;
 }
 .copy-btn { margin-top: 6px; padding: 5px 12px; font-size: 13px; }
 .message-block { margin: 14px 0 6px; }
 .message-block h5 { margin: 0 0 6px; font-size: 15px; }
-.message { font-family: inherit; font-size: 14px; }
+.message { font-family: var(--font); font-size: 14px; }
 .verify, .sources { font-size: 14px; margin: 8px 0; }
-.sources { color: var(--muted); word-break: break-word; }
+.sources { color: var(--muted); word-break: break-word; overflow-wrap: anywhere; }
 .sources a { color: var(--muted); }
 .platform-picker { margin: 18px 0 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 600; font-size: 15px; }
-.platform-picker select { font: inherit; font-weight: 400; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+.platform-picker select { max-width: 100%; font-weight: 400; padding: 8px 10px; min-height: 40px; border-radius: 8px; background: var(--surface); }
 .grade-cap a { color: inherit; }
 .fix-card a { color: inherit; }
 .print-header { display: none; }
@@ -63,15 +65,15 @@ a.tool-card:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 
 .guide-note { font-size: 14px; background: var(--info-bg); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; }
 
 @media print {
-  .print-header { display: block; border-bottom: 2px solid #000; margin-bottom: 14px; padding-bottom: 8px; }
+  .print-header { display: block; border-bottom: 2px solid var(--text); margin-bottom: 14px; padding-bottom: 8px; }
   .print-header p { margin: 2px 0; }
   .print-title { font-size: 20px; font-weight: 800; }
-  .disclaimer { border: 1px solid #999; background: #fff; margin: 0 0 14px; }
-  .copy-btn, .platform-picker, .back-link, #website-form { display: none !important; }
-  .fix-guide, .platform { background: #fff; border-color: #bbb; }
+  .disclaimer { border: 1px solid var(--muted); background: var(--surface); margin: 0 0 14px; }
+  .copy-btn, .platform-picker, #website-form { display: none !important; }
+  .fix-guide, .platform { background: var(--surface); }
   .platform[hidden] { display: none !important; }
-  .snippet, .message { border-color: #bbb; break-inside: avoid; page-break-inside: avoid; white-space: pre-wrap; }
-  .risk { break-inside: avoid; border: 1px solid #999; border-left-width: 4px; }
+  .snippet, .message { break-inside: avoid; page-break-inside: avoid; white-space: pre-wrap; }
+  .risk { break-inside: avoid; border: 1px solid var(--warn); border-left-width: 4px; }
   .message-block { break-inside: avoid; page-break-inside: avoid; }
   .message-block h5, .platform > summary { break-after: avoid; page-break-after: avoid; }
   .check { break-inside: auto; }

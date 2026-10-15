@@ -35,7 +35,7 @@ test("redirect is ignored when the record has an all mechanism (§6.1), followed
 });
 
 test("exactly 10 lookups pass, 11 fail", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   let r = await checkSpf(d, fakeDeps({ txt: { ...leaf(11), [d]: [`v=spf1 ${includes(10)} -all`] } }), other);
   assert.equal(r.status, "pass");
   assert.equal(r.data.lookups, 10);
@@ -47,18 +47,18 @@ test("exactly 10 lookups pass, 11 fail", async () => {
 });
 
 test("void lookups: 2 pass, 3 fail", async () => {
-  const d = "acme.com";
-  let r = await checkSpf(d, fakeDeps({ txt: { [d]: ["v=spf1 a:gone1.acme.com mx:gone2.acme.com ip4:192.0.2.1 -all"] } }), other);
+  const d = "example.com";
+  let r = await checkSpf(d, fakeDeps({ txt: { [d]: ["v=spf1 a:gone1.example.com mx:gone2.example.com ip4:192.0.2.1 -all"] } }), other);
   assert.equal(r.data.voids, 2);
   assert.equal(r.status, "pass");
-  r = await checkSpf(d, fakeDeps({ txt: { [d]: ["v=spf1 a:gone1.acme.com mx:gone2.acme.com exists:gone3.acme.com -all"] } }), other);
+  r = await checkSpf(d, fakeDeps({ txt: { [d]: ["v=spf1 a:gone1.example.com mx:gone2.example.com exists:gone3.example.com -all"] } }), other);
   assert.equal(r.data.voids, 3);
   assert.equal(r.status, "fail");
   assert.ok(r.data.codes.includes("too-many-void-lookups"));
 });
 
 test("an include loop is a permanent error", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   const txt = { [d]: ["v=spf1 include:x.example -all"], "x.example": ["v=spf1 include:y.example -all"], "y.example": ["v=spf1 include:x.example -all"] };
   const walk = await countSpfLookups(fakeResolver({ txt }), txt[d][0], { domain: d });
   assert.ok(walk.errors.some((e) => e.code === "loop" && e.severity === "permerror"));
@@ -68,7 +68,7 @@ test("an include loop is a permanent error", async () => {
 });
 
 test("an incomplete count is never reported as exact", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   const deps = fakeDeps({ txt: { [d]: ["v=spf1 include:ok.example include:broken.example -all"], "ok.example": ["v=spf1 ip4:192.0.2.1 -all"] } });
   const realTxt = deps.resolver.resolveTxt;
   deps.resolver.resolveTxt = async (name) => {
@@ -84,13 +84,13 @@ test("an incomplete count is never reported as exact", async () => {
 });
 
 test("an mx mechanism with more than 10 mail servers is a permanent error", async () => {
-  const mx = Array.from({ length: 11 }, (_, i) => ({ exchange: `mx${i}.acme.com`, priority: i }));
-  const walk = await countSpfLookups(fakeResolver({ mx: { "acme.com": mx } }), "v=spf1 mx -all", { domain: "acme.com" });
+  const mx = Array.from({ length: 11 }, (_, i) => ({ exchange: `mx${i}.example.com`, priority: i }));
+  const walk = await countSpfLookups(fakeResolver({ mx: { "example.com": mx } }), "v=spf1 mx -all", { domain: "example.com" });
   assert.ok(walk.errors.some((e) => e.code === "mx-too-many"));
 });
 
 test("ptr is flagged and removed from the proposal with a reason", async () => {
-  const d = "acme.com";
+  const d = "example.com";
   const r = await checkSpf(d, fakeDeps({ txt: { [d]: ["v=spf1 ptr ip4:192.0.2.1 -all"] } }), other);
   assert.equal(r.status, "warn");
   assert.ok(r.data.codes.includes("ptr-deprecated"));
@@ -129,14 +129,14 @@ test("two records merge into exactly one, duplicates removed with a reason", () 
 });
 
 test("exp= is preserved and redirect is kept when it still works", () => {
-  assert.equal(recommendSpf(["v=spf1 include:a.example -all exp=explain.acme.com"], "google").value, "v=spf1 include:a.example include:_spf.google.com -all exp=explain.acme.com");
-  const r = recommendSpf(["v=spf1 redirect=_spf.acme.com"], "google");
-  assert.equal(r.value, "v=spf1 include:_spf.google.com redirect=_spf.acme.com", "provider added in front of the redirect, no all");
+  assert.equal(recommendSpf(["v=spf1 include:a.example -all exp=explain.example.com"], "google").value, "v=spf1 include:a.example include:_spf.google.com -all exp=explain.example.com");
+  const r = recommendSpf(["v=spf1 redirect=_spf.example.com"], "google");
+  assert.equal(r.value, "v=spf1 include:_spf.google.com redirect=_spf.example.com", "provider added in front of the redirect, no all");
   assert.equal(recommendSpf(["v=spf1 redirect=_spf.google.com"], "google").value, "v=spf1 redirect=_spf.google.com", "already covered");
   // Merged with a record that has "all": the redirect would be ignored, so it's converted, with a warning.
-  const merged = recommendSpf(["v=spf1 redirect=_spf.acme.com", "v=spf1 include:x.example ~all"], "other");
-  assert.equal(merged.value, "v=spf1 include:x.example include:_spf.acme.com ~all");
-  assert.ok(merged.changes.some((c) => c.op === "convert" && /redirect=_spf\.acme\.com → include:_spf\.acme\.com/.test(c.term)));
+  const merged = recommendSpf(["v=spf1 redirect=_spf.example.com", "v=spf1 include:x.example ~all"], "other");
+  assert.equal(merged.value, "v=spf1 include:x.example include:_spf.example.com ~all");
+  assert.ok(merged.changes.some((c) => c.op === "convert" && /redirect=_spf\.example\.com → include:_spf\.example\.com/.test(c.term)));
   assert.ok(merged.warnings.length >= 1);
 });
 
@@ -157,12 +157,12 @@ test("no senders: still refuses to guess", () => {
 });
 
 test("safety check blocks over 10 lookups, over 2 voids, and marks an unverified count", async () => {
-  const mk = (value) => ({ domain: "acme.com", items: [{ title: "SPF", steps: [], records: [{ type: "TXT", name: "@", action: "Replace", value }] }] });
+  const mk = (value) => ({ domain: "example.com", items: [{ title: "SPF", steps: [], records: [{ type: "TXT", name: "@", action: "Replace", value }] }] });
   let p = await safetyCheckPlan(mk(`v=spf1 ${includes(11)} -all`), { resolver: fakeResolver({ txt: { ...GOOGLE, ...leaf(11) } }) });
   assert.equal(p.items[0].records[0].blocked, true);
   assert.match(p.items[0].records[0].note, /more than 10/);
 
-  p = await safetyCheckPlan(mk("v=spf1 a:g1.acme.com a:g2.acme.com a:g3.acme.com -all"), { resolver: fakeResolver({ txt: GOOGLE }) });
+  p = await safetyCheckPlan(mk("v=spf1 a:g1.example.com a:g2.example.com a:g3.example.com -all"), { resolver: fakeResolver({ txt: GOOGLE }) });
   assert.equal(p.items[0].records[0].blocked, true);
   assert.equal(p.items[0].records[0].voids, 3);
 
@@ -170,7 +170,7 @@ test("safety check blocks over 10 lookups, over 2 voids, and marks an unverified
   flaky.resolve4 = async () => {
     throw Object.assign(new Error("timeout"), { code: "ETIMEOUT" });
   };
-  p = await safetyCheckPlan(mk("v=spf1 a:host.acme.com -all"), { resolver: flaky });
+  p = await safetyCheckPlan(mk("v=spf1 a:host.example.com -all"), { resolver: flaky });
   assert.equal(p.items[0].records[0].blocked, "unverified");
   assert.equal(p.items[0].records[0].lookups, null);
   assert.equal(p.items[0].records[0].lookupsAtLeast, 1);
