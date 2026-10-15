@@ -24,6 +24,9 @@
     "api/breach.js": {
       "maxDuration": 20
     },
+    "api/pricing.js": {
+      "maxDuration": 10
+    },
     "api/preview.js": {
       "maxDuration": 30
     },

@@ -1,7 +1,7 @@
 // Fix Plan Builder (private). Renders /api/plan output as a client proposal and a
 // technician checklist. All text is inserted with textContent, never innerHTML, because
 // DNS records come from the prospect's domain and must be treated as untrusted.
-import { showSignedInChrome, checkSession, rememberFeatures } from "./tech-session.js";
+import { showSignedInChrome, checkSession, rememberSession } from "./tech-session.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -79,7 +79,16 @@ function renderClient(plan) {
     h("h2", {}, `Office Tech Fix Plan for ${plan.domain}`),
   );
 
-  if (plan.nothingToFix) {
+  // What the plan can't fix on its own, in plain English (see projectGrade in lib/plan.js).
+  const limits = plan.projected?.limitedBy || [];
+  const limitsList = () => h("ul", { class: "grade-limits" }, limits.map((l) => h("li", {}, l.reason)));
+
+  if (plan.nothingToFix && limits.length) {
+    root.append(
+      h("p", {}, `There's nothing we can fix straight away, but the health check graded ${plan.domain} ${plan.current.grade ?? "low"}. These need a conversation with you first:`),
+      limitsList(),
+    );
+  } else if (plan.nothingToFix) {
     root.append(
       h("p", {}, "Good news: the health check didn't find anything that needs fixing right now."),
       plan.verifyItems.length ? h("p", { class: "muted" }, "A few items couldn't be confirmed from outside. We can verify them with you in a short call.") : null,
@@ -90,6 +99,8 @@ function renderClient(plan) {
         gradeChip(plan.current.grade), h("span", { class: "arrow" }, "→"), gradeChip(plan.projected.grade),
         h("div", { class: "grade-caption" }, `Today: ${plan.current.grade ?? "not graded"}${plan.current.score != null ? ` (${plan.current.score}/100)` : ""}. After these fixes: ${plan.projected.grade} (${plan.projected.score}/100).`),
       ),
+      limits.length ? h("p", { class: "grade-limits-title" }, plan.projected.grade === "A" ? "Still to confirm with you:" : `Still capped at ${plan.projected.grade} because:`) : null,
+      limits.length ? limitsList() : null,
       h("p", {}, `We found ${plan.items.length} thing${plan.items.length === 1 ? "" : "s"} to fix. None of them require new hardware or software, and your team can keep working normally throughout. Here's exactly what we'll do, in order.`),
     );
 
@@ -730,7 +741,7 @@ $("gate-form").addEventListener("submit", async (e) => {
   try {
     const { res, body } = await api("/api/session", { method: "POST", body: { code } });
     if (!res.ok) return showError("gate-error", body.error || "Couldn't sign in.");
-    rememberFeatures(body.features);
+    rememberSession(body);
   } catch {
     return showError("gate-error", "Couldn't reach the server.");
   }

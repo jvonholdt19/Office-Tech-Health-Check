@@ -335,3 +335,89 @@ test("the README's price table matches lib/config.js", async () => {
   assert.ok(readme.includes(`a Standard fix for ${formatPrice(CONFIG.FOUNDING_OFFER.price)}`));
   assert.ok(readme.includes(`from ${formatPrice(CONFIG.QUOTE_ITEMS["email-migration"].from)}`));
 });
+
+/* --------------------------- grade projection ("after these fixes") --------------------------- */
+
+const wikipediaLike = () => runScan("example.org", fakeDeps({ tls: { "example.org": goodTls, "www.example.org": goodTls }, http: { ok: true, status: 301, location: "https://example.org/" }, rdap: rdapData({ locked: false }) }));
+
+test("projection: a domain with no mail servers (the wikipedia.org case) stays F after the plan, and says exactly why", async () => {
+  const report = await wikipediaLike();
+  assert.deepEqual([report.grade, report.score], ["F", 39]);
+  const plan = buildPlan(report, opts);
+  assert.deepEqual(plan.items.map((i) => i.id), ["domain-security"], "the only thing the plan can fix today");
+  // Only the fixed check moves to pass: SPF and DMARC still fail because the plan leaves them out on purpose.
+  assert.deepEqual([plan.projected.grade, plan.projected.score, plan.projected.complete], ["F", 47, false]);
+  assert.deepEqual(plan.projected.limitedBy.map((l) => l.checks), [["spf", "dmarc"], ["email-platform"]]);
+  assert.match(plan.projected.limitedBy[0].reason, /No mail servers were found for example\.org, so approved senders \(SPF\) and impersonation protection \(DMARC\) aren't in this plan/);
+  assert.match(plan.projected.limitedBy[1].reason, /We'll also confirm/);
+});
+
+test("projection: when every problem is in the plan, the plan reaches A with nothing left over", async () => {
+  const d = "example.com";
+  const report = await runScan(d, fakeDeps({
+    mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
+    txt: { [d]: ["v=spf1 ~all"] },
+    tls: { [d]: { ...goodTls, authorized: false, authorizationError: "CERT_HAS_EXPIRED" }, [`www.${d}`]: goodTls },
+    http: { ok: true, status: 200 },
+    rdap: rdapData({ locked: false }),
+  }));
+  assert.equal(report.grade, "F");
+  const plan = buildPlan(report, opts);
+  assert.deepEqual(plan.items.map((i) => i.id), ["domain-security", "spf", "dkim", "dmarc", "ssl", "https-redirect"]);
+  assert.deepEqual(plan.projected, { grade: "A", score: 100, complete: true, limitedBy: [] });
+});
+
+test("projection: something the client must confirm (mixed mail servers) is listed even when the grade reaches A", async () => {
+  const d = "example.net";
+  const report = await runScan(d, fakeDeps({
+    mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }, { exchange: "mail.example.net", priority: 20 }] },
+    a: { "mail.example.net": ["93.184.216.40"] },
+    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], [`google._domainkey.${d}`]: [DKIM_RECORD] },
+    tls: { [d]: goodTls, [`www.${d}`]: goodTls },
+    http: { ok: true, status: 301, location: `https://${d}/` },
+    rdap: rdapData(),
+  }));
+  const plan = buildPlan(report, opts);
+  assert.deepEqual([report.grade, plan.projected.grade, plan.projected.score, plan.projected.complete], ["C", "A", 98, false]);
+  assert.deepEqual(plan.projected.limitedBy.map((l) => l.checks), [["email-platform"]]);
+});
+
+test("projection: every scored check left failing or warning after the plan is explained (no silent F → F)", async () => {
+  const reports = [await wikipediaLike(), await neglectedOffice()];
+  for (const report of reports) {
+    const plan = buildPlan(report, opts);
+    const fixed = new Set(plan.items.flatMap((i) => i.fixes));
+    const leftover = report.checks.filter((c) => c.weight > 0 && ["fail", "warn"].includes(c.status) && !fixed.has(c.id)).map((c) => c.id).sort();
+    assert.deepEqual(plan.projected.limitedBy.flatMap((l) => l.checks).sort(), leftover, report.domain);
+    assert.equal(plan.projected.complete, leftover.length === 0);
+  }
+});
+
+test("Fix Plan page: shows why the grade is capped, and never says 'Good news' when the grade is low but nothing is fixable", async () => {
+  const { readFileSync } = await import("node:fs");
+  const js = readFileSync(new URL("../public/plan.js", import.meta.url), "utf8");
+  assert.match(js, /`Still capped at \$\{plan\.projected\.grade\} because:`/);
+  assert.match(js, /if \(plan\.nothingToFix && limits\.length\) \{/);
+  assert.ok(js.indexOf("plan.nothingToFix && limits.length") < js.indexOf("Good news"), "the low-grade case is handled before 'Good news'");
+});
+
+test("letterhead: NWIM Project Management, and the word 'marketing' appears nowhere outside the non-compete guards", async () => {
+  assert.equal(CONFIG.BUSINESS.fullName, "NWIM Project Management");
+  const { readFileSync, readdirSync, statSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const root = fileURLToPath(new URL("../", import.meta.url));
+  const files = [];
+  const walk = (dir) => {
+    for (const f of readdirSync(dir)) {
+      const p = join(dir, f);
+      if (statSync(p).isDirectory()) walk(p);
+      else if (/\.(js|html|css|md|json|txt|csv|svg)$/.test(f)) files.push(p);
+    }
+  };
+  for (const d of ["api", "lib", "public", "scripts", "docs"]) walk(join(root, d));
+  files.push(join(root, "README.md"), join(root, "CLAUDE.md"));
+  for (const f of files) assert.ok(!/marketing/i.test(readFileSync(f, "utf8")), f);
+  const plan = buildPlan(await neglectedOffice());
+  assert.equal(plan.business.fullName, "NWIM Project Management", "the client plan's letterhead");
+});

@@ -61,6 +61,21 @@ export function rememberFeatures(value) {
   features = value && typeof value === "object" ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, v === true])) : {};
 }
 
+// Admin (lib/admin.js isAdmin), as reported by /api/session. Admin-only tools stay hidden unless true;
+// their APIs refuse non-admins either way.
+let admin = false;
+
+/** Keep what a signed-in /api/session answer says about this technician: feature switches and admin. */
+export function rememberSession(body) {
+  rememberFeatures(body?.features);
+  admin = body?.admin === true;
+}
+
+/** True only when the server said this session is an admin. */
+export function isAdminSession() {
+  return admin;
+}
+
 /** True only when the server said this switch is on. The server enforces it either way. */
 export function featureEnabled(name) {
   return features[name] === true;
@@ -76,6 +91,7 @@ export function applyFeatures(doc = typeof document === "undefined" ? null : doc
     if (link) link.hidden = !on;
     if (soon) soon.hidden = on;
   }
+  for (const el of doc.querySelectorAll("[data-admin]")) el.hidden = !admin;
 }
 
 /**
@@ -127,7 +143,7 @@ export function checkSession({ show, onError = () => {}, apiFn = api, timeoutMs 
   return Promise.resolve()
     .then(() => apiFn("/api/session"))
     .then(({ res, body }) => {
-      if (body?.authenticated) rememberFeatures(body.features);
+      if (body?.authenticated) rememberSession(body);
       settle(Boolean(body?.authenticated), !body?.authenticated && !res.ok && body?.error ? body.error : "");
     })
     .catch(() => settle(false, "Couldn't reach the server."))
@@ -161,7 +177,7 @@ export function initGate({ contentId, onSignedIn = () => {}, onSignedOut = () =>
     try {
       const { res, body } = await api("/api/session", { method: "POST", body: { code } });
       if (!res.ok) return showError("gate-error", body.error || "Couldn't sign in.");
-      rememberFeatures(body.features);
+      rememberSession(body);
     } catch {
       return showError("gate-error", "Couldn't reach the server.");
     }

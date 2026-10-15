@@ -10,8 +10,10 @@
 // - feature: (optional) a switch from lib/features.js. A "live" tool with a feature shows as
 //   "Coming soon" on the dashboard and in the menu until the signed-in session reports it's on.
 // - icon: a symbol id in /assets/icons.svg.
+// - admin: (optional) only for admins (lib/admin.js). Hidden on the dashboard and in the menu unless
+//   the signed-in session is an admin; its API refuses non-admins either way.
 
-export const CATEGORIES = ["Email", "Web", "Domain", "Office"];
+export const CATEGORIES = ["Email", "Web", "Domain", "Office", "Admin"];
 
 export const TOOLS = [
   { id: "email-security", category: "Email", icon: "mail", name: "Email Security Check", blurb: "Email platform, SPF, DMARC, DKIM, domain registration and website certificate, from public records.", href: "/tools/email", status: "live" },
@@ -23,4 +25,5 @@ export const TOOLS = [
   { id: "account-security", category: "Office", icon: "lock", name: "Account Security Checklist", blurb: "MFA, admin accounts, shared passwords and offboarding.", href: null, status: "soon" },
   { id: "device-inventory", category: "Office", icon: "report", name: "Device Inventory", blurb: "Computers, phones and network gear, with update and warranty status.", href: null, status: "soon" },
   { id: "phishing-quiz", category: "Office", icon: "mail-shield", name: "Phishing Quiz", blurb: "A short quiz to help staff spot fake emails.", href: null, status: "soon" },
+  { id: "pricing-sheet", category: "Admin", icon: "report", name: "Pricing sheet", blurb: "Current prices and offers, straight from the price settings. Admin only; never shown to clients.", href: "/tools/pricing", status: "live", admin: true },
 ];
