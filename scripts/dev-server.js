@@ -11,6 +11,7 @@ import confirmHandler from "../api/plan-confirm.js";
 import websiteHandler from "../api/website.js";
 import previewHandler from "../api/preview.js";
 import domainHandler from "../api/domain.js";
+import { oldLinkRedirect } from "../lib/redirects.js";
 import { setStoreForTests, memoryStore } from "../lib/store.js";
 
 // Local preview only: without Supabase credentials, keep rate limits and the audit log in memory so
@@ -26,10 +27,11 @@ const port = Number(process.env.PORT || 3000);
 
 http
   .createServer(async (req, res) => {
-    const { pathname, searchParams } = new URL(req.url, "http://localhost");
-    // Same as vercel.json: old scanner links (/?d= or /?domain=) go to the technician tool, query kept.
-    if (pathname === "/" && (searchParams.has("d") || searchParams.has("domain"))) {
-      res.writeHead(307, { Location: `/tools/email${req.url.slice(1)}` }).end();
+    const { pathname } = new URL(req.url, "http://localhost");
+    // Same rules as vercel.json: old scanner links (/?d= or /?domain=) → /tools/email?d=<domain>.
+    const moved = oldLinkRedirect(req.url);
+    if (moved) {
+      res.writeHead(moved.status, { Location: moved.location }).end();
       return;
     }
     if (pathname === "/api/preview") return previewHandler(req, res);

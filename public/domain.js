@@ -13,10 +13,9 @@ const CATEGORY_BLURB = {
 const PLATFORM_NAMES = {
   godaddy: "GoDaddy",
   namecheap: "Namecheap",
-  "squarespace-domains": "Squarespace Domains",
   "cloudflare-registrar": "Cloudflare Registrar",
   "dns-cloudflare": "Cloudflare DNS",
-  "dns-registrar": "Registrar's DNS",
+  "dns-other": "Other DNS host",
   "microsoft-365": "Microsoft 365",
   "google-workspace": "Google Workspace",
 };

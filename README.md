@@ -11,7 +11,7 @@ IT and security health checks for small offices, by NWIM Project Management.
 | `/tools/domain` | Technicians | **Domain Health** (`GET /api/domain`) |
 | `/plan` | Technicians | Fix Plan Builder |
 
-Old scanner links (`/?d=acme.com`, `/?domain=acme.com`) redirect (307) to `/tools/email` with the query kept, so signed-out visitors land on the sign-in gate.
+Old scanner links (`/?d=acme.com`, `/?domain=acme.com`) redirect (307) to `/tools/email?d=acme.com` (rules in `lib/redirects.js`, mirrored in `vercel.json`), so signed-out visitors land on the sign-in gate and the domain is filled in after sign-in.
 
 The Email Security Check looks at, using only public records:
 
@@ -102,11 +102,11 @@ The lander's preview calls `GET /api/preview?domain=` and returns only `{ domain
 
 | Limit | Value |
 |---|---|
-| Per IP (from `x-real-ip`, set by Vercel) | 5 per 10 minutes and 20 per day |
+| Per client (`x-real-ip`, set by Vercel; IPv6 by /64 prefix) | 5 per 10 minutes and 20 per day |
 | Per domain (all visitors) | 3 per 10 minutes |
 | Global | 300 per hour |
 
-A `preview_scan` audit event (`ip`, `domain`, `grade` only) is written at most once per IP per hour, so audit volume stays bounded.
+The per-client limits are checked first and on their own: a request they refuse never touches the per-domain or global counters, so one client can't use up the global cap or lock a domain for others. A `preview_scan` audit event (`ip`, `domain`, `grade` only) is written at most once per client per hour, so audit volume stays bounded.
 
 ## Domain Health (private, /tools/domain)
 
@@ -119,12 +119,12 @@ Passive only: DNS lookups, the registry's RDAP record, and SOA/DNSKEY questions 
 | Nameservers | 15 | Fail with fewer than 2 or one that doesn't resolve; warn when one isn't authoritative (lame) | RFC 1034 §4.1, RFC 2182, RFC 1912 §2.8, RFC 8499 |
 | Mail servers (MX) | 10 | Fail when an MX host doesn't resolve or is private; null MX / no MX is info | RFC 5321 §5, RFC 7505 |
 | Email authentication | 10 | Warn when SPF or DMARC is missing (presence only; links to the Email Security Check) | RFC 7208, RFC 7489 |
-| Dangling CNAME | 10 | Fail when www/mail/shop/blog/apex points at a takeover-prone service and the target is NXDOMAIN; warn for other NXDOMAIN targets | can-i-take-over-xyz |
+| Dangling CNAME | 10 | Fail when www/mail/shop/blog/apex points at a service can-i-take-over-xyz lists as vulnerable with an NXDOMAIN fingerprint (Azure, AWS Elastic Beanstalk, Discourse) and the target is NXDOMAIN; warn for other NXDOMAIN targets | can-i-take-over-xyz |
 | SOA | 5 | Warn on serial mismatch between nameservers; timers outside RFC 1912 guidance are info only | RFC 1912 §2.2, RFC 2308 |
 | CAA | 3 | Pass when present; none is info | RFC 8659 |
 | DNSSEC | 0 | Info when unsigned; fail when the registry has a DS but the nameservers serve no DNSKEY | RFC 4033 |
 
-Caps: expired, redemption period or pending delete → F; a nameserver that doesn't resolve → at most D. The email scanner's own registration check keeps its 30/90-day thresholds. Every warning or failure carries a guide for registrars (GoDaddy, Namecheap, Squarespace Domains, Cloudflare Registrar) and DNS hosts; steps not confirmed from a registrar's own help pages say "ask the registrar's support". `domain_scan` is audited like `website_scan`, and each domain can be checked at most 3 times a minute.
+Caps: expired, redemption period or pending delete → F; a nameserver that doesn't resolve → at most D. The email scanner's own registration check keeps its 30/90-day thresholds. Every warning or failure carries a guide for registrars (GoDaddy, Namecheap, Cloudflare Registrar) and DNS hosts (Cloudflare, Microsoft 365, Google Workspace), using only steps confirmed on each vendor's own help pages. `domain_scan` is audited like `website_scan`, and each domain can be checked at most 3 times a minute.
 
 ## Fix Plan Builder (private)
 

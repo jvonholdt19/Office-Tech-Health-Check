@@ -124,10 +124,11 @@
       "has": [
         {
           "type": "query",
-          "key": "d"
+          "key": "d",
+          "value": "(?<d>[A-Za-z0-9.-]+)"
         }
       ],
-      "destination": "/tools/email",
+      "destination": "/tools/email?d=:d",
       "permanent": false
     },
     {
@@ -135,10 +136,11 @@
       "has": [
         {
           "type": "query",
-          "key": "domain"
+          "key": "domain",
+          "value": "(?<domain>[A-Za-z0-9.-]+)"
         }
       ],
-      "destination": "/tools/email",
+      "destination": "/tools/email?d=:domain",
       "permanent": false
     }
   ]

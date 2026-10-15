@@ -15,6 +15,7 @@ import {
   checkEmailAuth,
   lookupCnames,
   checkDanglingCname,
+  TAKEOVER_PATTERNS,
 } from "../lib/checks/domain-health.js";
 import { runDomainScan, applyDomainCaps, setDomainDepsForTests } from "../lib/domain-scan.js";
 import { buildQuery, parseResponse, queryDns, TYPE } from "../lib/dnswire.js";
@@ -323,6 +324,38 @@ const FLAGGABLE = {
   "dangling-cname": ["possible-takeover", "dangling"],
 };
 
+test("registrar and DNS-host steps match the official help pages they cite", () => {
+  const steps = (id, platform) => FIX_GUIDES[id].platforms.find((p) => p.id === platform).steps.join(" ");
+  const srcs = (id) => FIX_GUIDES[id].sources.join(" ");
+  // GoDaddy help 41085 / 410 / 664
+  assert.match(steps("domain-expiry", "godaddy"), /Renew section, switch Auto-renew on/);
+  assert.match(steps("domain-status", "godaddy"), /Transfer section, switch the toggle On/);
+  assert.match(steps("nameservers", "godaddy"), /DNS, then Nameservers/);
+  assert.match(srcs("domain-status"), /godaddy\.com\/help\/unlock-or-lock-my-domain-410/);
+  assert.match(srcs("nameservers"), /godaddy\.com\/help\/change-my-domain-nameservers-664/);
+  // Namecheap KB 373 / 380 / 767
+  assert.match(steps("domain-expiry", "namecheap"), /Actions → Auto-Renew/);
+  assert.match(steps("domain-status", "namecheap"), /Sharing & Transfer.*Domain Lock/);
+  assert.match(steps("nameservers", "namecheap"), /green checkmark/);
+  assert.match(srcs("nameservers"), /knowledgebase\/article\.aspx\/767/);
+  // Cloudflare docs
+  assert.match(steps("domain-expiry", "cloudflare-registrar"), /Renew\/Extend Domain/);
+  assert.match(steps("domain-status", "cloudflare-registrar"), /Manage Domains page.*Configuration/);
+  assert.match(steps("nameservers", "dns-cloudflare"), /Overview page/);
+  assert.match(FIX_GUIDES.nameservers.risk, /turn it off at the registrar before replacing nameservers/);
+  assert.match(steps("mx", "dns-cloudflare"), /Edit, then Delete/);
+  // Microsoft Learn / Google Workspace Admin Help
+  assert.match(steps("mx", "microsoft-365"), /Settings → Domains.*Manage DNS/);
+  assert.match(steps("mx", "microsoft-365"), /mail\.protection\.outlook\.com/);
+  assert.match(steps("mx", "google-workspace"), /smtp\.google\.com, priority 1/);
+  assert.ok(!FIX_GUIDES["email-auth"].platforms.some((p) => ["microsoft-365", "google-workspace"].includes(p.id)), "unverified SPF steps dropped");
+});
+
+test("takeover patterns are exactly the can-i-take-over-xyz entries detectable by NXDOMAIN", () => {
+  for (const p of ["azurewebsites.net", "cloudapp.net", "cloudapp.azure.com", "blob.core.windows.net", "azure-api.net", "elasticbeanstalk.com", "trydiscourse.com"]) assert.ok(TAKEOVER_PATTERNS.includes(p), p);
+  for (const p of ["trafficmanager.net", "s3.amazonaws.com", "herokuapp.com", "github.io", "netlify.app", "wpengine.com", "elb.amazonaws.com"]) assert.ok(!TAKEOVER_PATTERNS.includes(p), `${p} not listed (HTTP fingerprint, not in the table, or not vulnerable)`);
+});
+
 test("every flaggable Domain Health check + code has a complete guide", () => {
   for (const [id, codes] of Object.entries(FLAGGABLE)) {
     assert.equal(FIX_GUIDES[id].tool, "domain", id);
@@ -338,11 +371,16 @@ test("every flaggable Domain Health check + code has a complete guide", () => {
       assert.match(rendered.message, /our IT provider/i);
     }
   }
-  const registrars = ["godaddy", "namecheap", "squarespace-domains", "cloudflare-registrar"];
+  const registrars = ["godaddy", "namecheap", "cloudflare-registrar"];
   for (const id of ["domain-expiry", "domain-status"]) assert.deepEqual(FIX_GUIDES[id].platforms.map((p) => p.id), registrars, id);
   for (const id of ["mx", "dangling-cname"]) assert.ok(FIX_GUIDES[id].platforms.some((p) => p.id === "dns-cloudflare"), id);
-  for (const id of ["mx", "email-auth"]) for (const p of ["microsoft-365", "google-workspace"]) assert.ok(FIX_GUIDES[id].platforms.some((x) => x.id === p), `${id}/${p}`);
+  for (const id of ["mx"]) for (const p of ["microsoft-365", "google-workspace"]) assert.ok(FIX_GUIDES[id].platforms.some((x) => x.id === p), `${id}/${p}`);
   for (const id of ["domain-expiry", "nameservers", "dnssec", "mx", "email-auth", "dangling-cname"]) assert.ok(FIX_GUIDES[id].risk, `${id} risk`);
-  // Unverified registrar steps say so instead of guessing.
-  assert.ok(FIX_GUIDES["domain-status"].platforms.find((p) => p.id === "squarespace-domains").steps.some((s) => /ask the registrar's support/.test(s)));
+  // Only steps confirmed on the vendors' own help pages remain: nothing hedged or guessed.
+  for (const id of Object.keys(FLAGGABLE)) {
+    for (const p of FIX_GUIDES[id].platforms) {
+      assert.ok(!["squarespace-domains", "dns-registrar"].includes(p.id), `${id}: ${p.id} was dropped (no official page)`);
+      for (const step of p.steps) assert.ok(!/not confirmed/i.test(step), `${id}/${p.id}: "${step}"`);
+    }
+  }
 });
