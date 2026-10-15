@@ -19,8 +19,13 @@ import {
   fetchWordPressVersions,
   resetWordPressCache,
   frameAncestors,
+  checkCertificate,
+  checkTlsDetails,
+  checkCors,
+  checkSri,
+  findExternalScripts,
 } from "../lib/checks/website-security.js";
-import { parseWebsiteTarget, runWebsiteScan, setWebsiteDepsForTests } from "../lib/website-scan.js";
+import { parseWebsiteTarget, runWebsiteScan, setWebsiteDepsForTests, applyGradeCaps } from "../lib/website-scan.js";
 import websiteHandler from "../api/website.js";
 import { setStoreForTests, memoryStore } from "../lib/store.js";
 import { onAudit } from "../lib/audit.js";
@@ -48,8 +53,10 @@ test("CSP: missing or report-only is yellow, never red; header or <meta> passes"
   assert.equal(checkCsp(page({ "content-security-policy": "script-src 'self' 'unsafe-inline'" })).data.unsafeInline, true);
 });
 
-test("clickjacking: X-Frame-Options or CSP frame-ancestors satisfies it", () => {
-  assert.equal(checkFraming(page()).status, "fail");
+test("clickjacking: X-Frame-Options or CSP frame-ancestors satisfies it; missing is a warning (weight 6)", () => {
+  const missing = checkFraming(page());
+  assert.equal(missing.status, "warn", "small-office fairness: missing is yellow, not red");
+  assert.equal(missing.weight, 6);
   assert.equal(checkFraming(page({ "x-frame-options": "SAMEORIGIN" })).status, "pass");
   assert.equal(checkFraming(page({ "x-frame-options": "deny" })).status, "pass");
   assert.equal(checkFraming(page({ "content-security-policy": "default-src 'self'; frame-ancestors 'none'" })).status, "pass");
@@ -60,13 +67,22 @@ test("clickjacking: X-Frame-Options or CSP frame-ancestors satisfies it", () => 
 });
 
 test("nosniff, Referrer-Policy and Permissions-Policy", () => {
-  assert.equal(checkNosniff(page()).status, "fail");
+  const nosniff = checkNosniff(page());
+  assert.equal(nosniff.status, "warn", "missing nosniff is a warning (Observatory: -5)");
+  assert.equal(nosniff.weight, 4);
   assert.equal(checkNosniff(page({ "x-content-type-options": "nosniff" })).status, "pass");
-  assert.equal(checkReferrerPolicy(page()).status, "warn");
+  const ref = checkReferrerPolicy(page());
+  assert.equal(ref.status, "pass", "missing Referrer-Policy: browsers default to strict-origin-when-cross-origin");
+  assert.equal(ref.weight, 2);
+  assert.match(ref.summary, /default/);
   assert.equal(checkReferrerPolicy(page({ "referrer-policy": "unsafe-url" })).status, "warn");
   assert.equal(checkReferrerPolicy(page({ "referrer-policy": "no-referrer, strict-origin-when-cross-origin" })).status, "pass");
-  assert.equal(checkPermissionsPolicy(page()).status, "warn", "missing Permissions-Policy is yellow, not red");
-  assert.equal(checkPermissionsPolicy(page({ "permissions-policy": "camera=()" })).status, "pass");
+  const pp = checkPermissionsPolicy(page());
+  assert.equal(pp.status, "info", "Permissions-Policy is not scored");
+  assert.equal(pp.weight, 0);
+  assert.match(pp.summary, /camera=\(\)/, "the advice is kept");
+  assert.equal(checkPermissionsPolicy(page({ "permissions-policy": "camera=()" })).status, "info");
+  assert.equal(checkPermissionsPolicy(page({ "permissions-policy": "camera=()" })).weight, 0);
 });
 
 test("header checks are left out (info, weight 0) when there's no HTTPS page", () => {
@@ -96,9 +112,10 @@ test("Set-Cookie parsing reads flags and never keeps values", () => {
   assert.equal(r.status, "fail", "a cookie without Secure on an HTTPS site is red");
   const out = JSON.stringify(r);
   assert.ok(!out.includes("SECRET-VALUE"), "cookie values never appear in the result");
-  assert.match(r.detail, /_ga: missing Secure, SameSite/);
-  assert.match(r.detail, /_ga: no HttpOnly \(normal/, "analytics cookies get an info note for HttpOnly");
-  assert.match(r.detail, /cart: missing HttpOnly, SameSite/);
+  assert.match(r.detail, /_ga: missing Secure/);
+  assert.match(r.detail, /_ga: no HttpOnly \(fine/, "non-session cookies get an info note for HttpOnly");
+  assert.match(r.detail, /cart: no HttpOnly \(fine/, "cart isn't a session cookie, so no HttpOnly is info only");
+  assert.match(r.detail, /cart: no SameSite \(browsers default to Lax\)/);
 });
 
 test("cookies: all flags set passes; cookies on redirect hops count; none set passes", () => {
@@ -123,11 +140,152 @@ test("mixed content: http:// in src, stylesheet links and form actions; only on 
     <form action="http://acmedental.com/contact" method="post"></form>`;
   const found = findMixedContent(html);
   assert.deepEqual(found.map((f) => f.tag), ["script", "img", "link", "form"]);
+  assert.deepEqual(found.map((f) => f.active), [true, false, true, true]);
   const r = checkMixedContent(page({}, html));
-  assert.equal(r.status, "warn");
+  assert.equal(r.status, "fail", "active mixed content is red");
+  assert.equal(r.weight, 6);
   assert.equal(r.data.forms, 1);
   assert.equal(checkMixedContent(page({}, "<img src=/x.png>")).status, "pass");
   assert.equal(checkMixedContent(page({}, html, "http://acmedental.com/")).status, "info", "not checked on plain-HTTP pages");
+});
+
+test("mixed content: active (script, iframe, stylesheet, form) fails; passive (img, audio, video, source) warns", () => {
+  for (const html of [`<script src="http://x.example/a.js"></script>`, `<iframe src="http://x.example/"></iframe>`, `<link rel="stylesheet" href="http://x.example/s.css">`, `<form action="http://x.example/post"></form>`]) {
+    assert.equal(checkMixedContent(page({}, html)).status, "fail", html);
+  }
+  for (const html of [`<img src="http://x.example/a.png">`, `<audio src="http://x.example/a.mp3"></audio>`, `<video src="http://x.example/a.mp4"></video>`, `<source src="http://x.example/a.webm">`, `<link rel="icon" href="http://x.example/f.ico">`]) {
+    assert.equal(checkMixedContent(page({}, html)).status, "warn", html);
+  }
+});
+
+/* ------------------------------- HSTS ---------------------------- */
+
+test("HSTS weight 8; includeSubDomains/preload are noted without changing the score; HTTP-only HSTS counts as missing", () => {
+  const plain = checkHsts(page({ "strict-transport-security": "max-age=31536000" }));
+  const full = checkHsts(page({ "strict-transport-security": "max-age=31536000; includeSubDomains; preload" }));
+  assert.equal(plain.weight, 8);
+  assert.equal(plain.status, "pass");
+  assert.equal(full.status, "pass");
+  assert.equal(full.weight, plain.weight, "no score change for the extras");
+  assert.deepEqual([full.data.includeSubDomains, full.data.preload], [true, true]);
+  assert.match(full.summary, /includeSubDomains/);
+  assert.match(plain.summary, /Optional: includeSubDomains/);
+  const http = { ok: true, responses: [page({ "strict-transport-security": "max-age=31536000", location: "https://acmedental.com/" }, "", "http://acmedental.com/", 301)] };
+  const onlyHttp = checkHsts(page(), { http });
+  assert.equal(onlyHttp.status, "fail");
+  assert.equal(onlyHttp.data.code, "http-only");
+});
+
+/* ------------------------------- CSP ----------------------------- */
+
+test("CSP: unsafe-inline without nonce/hash, *, http: or https: sources warn; nonce/hash and strict lists pass", () => {
+  const csp = (v) => checkCsp(page({ "content-security-policy": v }));
+  assert.equal(csp("script-src 'self' 'unsafe-inline'").status, "warn");
+  assert.equal(csp("default-src 'self' 'unsafe-inline'").status, "warn", "default-src is the fallback");
+  assert.equal(csp("script-src *").status, "warn");
+  assert.equal(csp("script-src 'self' https:").status, "warn");
+  assert.equal(csp("default-src http:").status, "warn");
+  assert.equal(csp("script-src 'self' 'unsafe-inline' 'nonce-abc123'").status, "pass", "a nonce neutralises unsafe-inline");
+  assert.equal(csp("script-src 'self' 'sha256-abc='").status, "pass");
+  assert.equal(csp("default-src 'self'; script-src 'self' https://cdn.example").status, "pass");
+  assert.equal(csp("frame-ancestors 'self'").status, "warn", "a CSP that doesn't restrict scripts isn't a pass");
+  assert.equal(csp("script-src 'self'").weight, 5);
+});
+
+test("CSP: a <meta> CSP passes only when it restricts scripts", () => {
+  const meta = (v) => checkCsp(page({}, `<meta http-equiv="Content-Security-Policy" content="${v}">`));
+  assert.equal(meta("default-src 'self'").status, "pass");
+  assert.equal(meta("upgrade-insecure-requests").status, "warn");
+  assert.equal(meta("script-src 'self' 'unsafe-inline'").status, "warn");
+});
+
+/* ------------------------------ cookies -------------------------- */
+
+test("cookies: missing SameSite alone is info (pass), not a warning", () => {
+  const chain = (lines) => ({ ok: true, responses: [page({ "set-cookie": lines })] });
+  const r = checkCookies({ https: chain(["PHPSESSID=x; Secure; HttpOnly"]) });
+  assert.equal(r.status, "pass");
+  assert.match(r.detail, /no SameSite \(browsers default to Lax\)/);
+});
+
+test("cookies: missing HttpOnly warns only for session-looking names", () => {
+  const chain = (lines) => ({ ok: true, responses: [page({ "set-cookie": lines })] });
+  for (const name of ["PHPSESSID", "JSESSIONID", "ASP.NET_SessionId", "laravel_session", "wordpress_logged_in_abc", "auth_token", "sid", "my_session"]) {
+    const r = checkCookies({ https: chain([`${name}=v; Secure; SameSite=Lax`]) });
+    assert.equal(r.status, "warn", name);
+    assert.match(r.detail, /missing HttpOnly/, name);
+  }
+  for (const name of ["cart", "_ga", "lang", "XSRF-TOKEN", "_hjSessionUser_1"]) {
+    assert.equal(checkCookies({ https: chain([`${name}=v; Secure; SameSite=Lax`]) }).status, "pass", name);
+  }
+  assert.equal(checkCookies({ https: chain(["PHPSESSID=v; HttpOnly; SameSite=Lax"]) }).status, "fail", "missing Secure on HTTPS is still red");
+});
+
+/* -------------------------------- SRI ---------------------------- */
+
+test("SRI: third-party scripts without integrity warn only for smaller hosts; major CDNs are info; own scripts ignored", () => {
+  const sri = (html) => checkSri(page({}, html), "acmedental.com");
+  assert.equal(sri(`<script src="/app.js"></script><script src="https://www.acmedental.com/x.js"></script>`).status, "pass");
+  assert.equal(sri(`<script src="https://cdn.tinywidgets.io/w.js" integrity="sha384-abc" crossorigin="anonymous"></script>`).status, "pass");
+  const major = sri(`<script async src="https://www.googletagmanager.com/gtag/js?id=G-1"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>`);
+  assert.equal(major.status, "info");
+  assert.equal(major.weight, 0);
+  const minor = sri(`<script src="//cdn.tinywidgets.io/w.js"></script><script src="https://www.googletagmanager.com/gtm.js"></script>`);
+  assert.equal(minor.status, "warn");
+  assert.equal(minor.weight, 3);
+  assert.deepEqual(minor.data.hosts, ["cdn.tinywidgets.io"]);
+  assert.deepEqual(findExternalScripts(`<script src="https://a.example/x.js" integrity="sha256-x"></script>`, "acmedental.com").map((s) => s.integrity), [true]);
+});
+
+/* -------------------------------- CORS --------------------------- */
+
+test("CORS: wildcard is info; credentials for another origin warn; none is info", () => {
+  assert.equal(checkCors(page(), "acmedental.com").status, "info");
+  const star = checkCors(page({ "access-control-allow-origin": "*" }), "acmedental.com");
+  assert.equal(star.status, "info");
+  assert.equal(star.weight, 0);
+  const creds = checkCors(page({ "access-control-allow-origin": "https://evil.example", "access-control-allow-credentials": "true" }), "acmedental.com");
+  assert.equal(creds.status, "warn");
+  assert.equal(creds.weight, 3);
+  assert.equal(checkCors(page({ "access-control-allow-origin": "null", "access-control-allow-credentials": "true" }), "acmedental.com").status, "warn");
+  assert.equal(checkCors(page({ "access-control-allow-origin": "https://shop.acmedental.com", "access-control-allow-credentials": "true" }), "acmedental.com").status, "info", "own subdomain is fine");
+});
+
+/* --------------------------- certificate ------------------------- */
+
+const tlsFor = (days, extra = {}) => ({ ok: true, authorized: true, validTo: new Date(NOW.getTime() + days * 86400000 + 3600000).toISOString(), issuer: "Let's Encrypt", protocol: "TLSv1.3", ...extra });
+const cert = (apex, www, usesWww = false) => checkCertificate({ host: "acmedental.com", tls: [{ host: "acmedental.com", ...apex }, { host: "www.acmedental.com", ...www }], usesWww }, { now: () => NOW });
+
+test("certificate (website tool): 20 days warns, 6 days fails, 30 days passes", () => {
+  assert.equal(cert(tlsFor(30), tlsFor(30)).status, "pass");
+  const twenty = cert(tlsFor(20), tlsFor(90));
+  assert.equal(twenty.status, "warn");
+  assert.equal(twenty.data.days, 20);
+  const six = cert(tlsFor(90), tlsFor(6));
+  assert.equal(six.status, "fail");
+  assert.equal(six.data.code, "expiring-urgent");
+  assert.equal(six.data.host, "www.acmedental.com");
+});
+
+test("certificate: invalid on www only warns when the site never uses www; otherwise fails", () => {
+  const badWww = { ok: true, authorized: false, authorizationError: "ERR_TLS_CERT_ALTNAME_INVALID", validTo: tlsFor(90).validTo };
+  const wwwOnly = cert(tlsFor(90), badWww, false);
+  assert.equal(wwwOnly.status, "warn");
+  assert.equal(wwwOnly.data.code, "www-invalid");
+  assert.equal(wwwOnly.data.host, "www.acmedental.com");
+  assert.equal(cert(tlsFor(90), badWww, true).status, "fail", "the site redirects to www, so visitors see the warning");
+  assert.equal(cert({ ok: true, authorized: false, authorizationError: "CERT_HAS_EXPIRED" }, tlsFor(90)).data.code, "invalid", "an invalid apex always fails");
+});
+
+test("TLS details: info with protocol and key; TLS 1.0/1.1 fails (weight 0)", () => {
+  const ok = checkTlsDetails({ host: "acmedental.com", tls: [{ host: "acmedental.com", ...tlsFor(90, { keyType: "EC", keyBits: 256 }) }] });
+  assert.equal(ok.status, "info");
+  assert.equal(ok.weight, 0);
+  assert.match(ok.summary, /TLSv1\.3 with an EC 256-bit key/);
+  const old = checkTlsDetails({ host: "acmedental.com", tls: [{ host: "acmedental.com", ...tlsFor(90, { protocol: "TLSv1.1" }) }] });
+  assert.equal(old.status, "fail");
+  assert.equal(old.weight, 0);
+  assert.equal(checkTlsDetails({ host: "acmedental.com", tls: [{ host: "acmedental.com", ...tlsFor(90, { keyType: "RSA", keyBits: 1024 }) }] }).data.code, "weak-key");
 });
 
 /* ----------------------- version disclosure ---------------------- */
@@ -314,6 +472,63 @@ test("an unreachable site gets no grade", async () => {
 test("runWebsiteScan refuses bad input without touching the network", async () => {
   const r = await runWebsiteScan("http://127.0.0.1/", { fetchPage: () => assert.fail("no fetch"), inspectTls: () => assert.fail("no TLS") });
   assert.ok(r.error);
+});
+
+/* ----------------------------- grade caps ------------------------ */
+
+const strongPage = (url = "https://acmedental.com/") => ({ status: 200, headers: strongHeaders, body: "<html></html>", url });
+async function scanWith(routes, { tls = goodTls, wwwTls } = {}) {
+  return runWebsiteScan("acmedental.com", {
+    resolver: fakeResolver(acmeDns),
+    fetchPage: fakeFetchPage(routes),
+    inspectTls: async (h) => (h.startsWith("www.") && wwwTls ? wwwTls : tls),
+    wordpressVersions: versionsOk,
+    now: () => NOW,
+  });
+}
+
+test("caps: no HTTPS → F even with an otherwise decent score", async () => {
+  const r = await scanWith({ "http://acmedental.com/": strongPage("http://acmedental.com/") }, { tls: { ok: false, error: "ECONNREFUSED" } });
+  assert.equal(r.grade, "F");
+  assert.ok(r.data.cappedBy.some((c) => c.check === "https" && c.maxGrade === "F"));
+});
+
+test("caps: invalid / expired certificate → F; the score number is the uncapped weighted value", async () => {
+  const routes = { "https://acmedental.com/": strongPage(), "http://acmedental.com/": { status: 301, headers: { location: "https://acmedental.com/" } } };
+  const bad = { ...goodTls, authorized: false, authorizationError: "CERT_HAS_EXPIRED" };
+  const r = await scanWith(routes, { tls: bad });
+  assert.equal(r.grade, "F");
+  assert.equal(r.data.cappedBy[0].check, "ssl");
+  assert.equal(r.data.uncappedGrade, "B", "weighted score alone would be a B");
+  assert.equal(r.score, 82); // 70 of 85 points: only the 15-point certificate check is lost
+});
+
+test("caps: an https → http downgrade → F", async () => {
+  const r = await scanWith({
+    "https://acmedental.com/": { status: 301, headers: { location: "http://www.acmedental.com/" } },
+    "http://www.acmedental.com/": { status: 200, headers: {}, body: "" },
+    "http://acmedental.com/": { status: 301, headers: { location: "https://acmedental.com/" } },
+  });
+  assert.equal(r.grade, "F");
+  assert.ok(r.data.cappedBy.some((c) => /redirects back to plain HTTP/.test(c.reason)));
+});
+
+test("caps: HTTP not redirecting to HTTPS → at most C, with the reason on the report", async () => {
+  const r = await scanWith({ "https://acmedental.com/": strongPage(), "http://acmedental.com/": { status: 200, headers: {}, body: "" } });
+  assert.equal(r.data.uncappedGrade, "A");
+  assert.equal(r.grade, "C");
+  assert.deepEqual(r.data.cappedBy.map((c) => c.maxGrade), ["C"]);
+  assert.match(r.data.cappedBy[0].reason, /isn't redirected to HTTPS/);
+});
+
+test("caps: none on a well-configured site; applyGradeCaps keeps the worse grade and leaves null alone", async () => {
+  const r = await scanWith({ "https://acmedental.com/": strongPage(), "http://acmedental.com/": { status: 301, headers: { location: "https://acmedental.com/" } } });
+  assert.equal(r.grade, "A");
+  assert.equal(r.data.cappedBy, null);
+  const redirectWarn = [{ id: "https-redirect", status: "warn", data: { code: "no-redirect" } }];
+  assert.equal(applyGradeCaps("D", redirectWarn).grade, "D", "a cap never improves a grade");
+  assert.equal(applyGradeCaps(null, redirectWarn).grade, null);
+  assert.equal(applyGradeCaps("A", [{ id: "tls-details", status: "fail", data: { code: "old-tls" } }]).grade, "B");
 });
 
 /* ------------------------- /api/website -------------------------- */

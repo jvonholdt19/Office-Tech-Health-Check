@@ -205,3 +205,28 @@ test("DNS is re-vetted on every hop (rebinding to a private address mid-chain is
   assert.equal(log.length, 1, "the rebound hop was never connected to");
   assert.equal(r.stopped.reason, "non-public address");
 });
+
+test("inspectTls: minVersion is opt-in (website tool only), and key type/size come from the same handshake", async () => {
+  const resolver = fakeResolver({ a: { "shop.example": ["93.184.216.34"] } });
+  const seen = [];
+  const fakeConnect = (o, onConnect) => {
+    seen.push(o);
+    const socket = {
+      authorized: true,
+      authorizationError: null,
+      getPeerCertificate: () => ({ valid_to: "Jan  1 00:00:00 2027 GMT", issuer: { O: "Let's Encrypt" }, bits: 2048, modulus: "ABCD" }),
+      getProtocol: () => "TLSv1.3",
+      on() {},
+      destroy() {},
+    };
+    queueMicrotask(onConnect);
+    return socket;
+  };
+  const plain = await inspectTls("shop.example", { resolver, connect: fakeConnect });
+  assert.equal("minVersion" in seen[0], false, "the email scanner's handshake is unchanged");
+  assert.equal("ciphers" in seen[0], false);
+  assert.equal(plain.keyType, "RSA");
+  assert.equal(plain.keyBits, 2048);
+  await inspectTls("shop.example", { resolver, connect: fakeConnect, minVersion: "TLSv1" });
+  assert.equal(seen[1].minVersion, "TLSv1");
+});

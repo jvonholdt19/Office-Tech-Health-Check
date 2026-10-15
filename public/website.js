@@ -48,6 +48,7 @@ function render(r) {
       ),
       h("div", { class: "summary-actions no-print" }, h("button", { type: "button", class: "btn-ghost", onclick: () => window.print() }, "Save as PDF")),
     ),
+    r.data && r.data.cappedBy ? h("p", { class: "grade-cap" }, `Grade capped at ${r.data.cappedBy[0].maxGrade} because ${r.data.cappedBy.map((c) => c.reason).join("; ")}.`) : null,
     r.redirects.https.length ? h("p", { class: "redirect-path" }, "HTTPS: ", h("code", {}, path(r.redirects.https))) : null,
     r.redirects.http.length ? h("p", { class: "redirect-path" }, "HTTP: ", h("code", {}, path(r.redirects.http))) : null,
     stopped ? h("p", { class: "redirect-path" }, stopped.offsite ? "Off-site redirect (not followed): " : "Not followed: ", h("code", {}, stopped.offsite ? stopped.location || "" : `${stopped.location || ""} (${stopped.reason})`)) : null,
