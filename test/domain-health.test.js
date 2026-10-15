@@ -222,6 +222,12 @@ test("a healthy domain gets an A; redemption caps at F; an unresolvable NS caps 
   assert.equal(applyDomainCaps("F", [{ id: "nameservers", data: { code: "ns-unresolvable" } }]).grade, "F", "a cap never improves a grade");
 });
 
+test("a domain that isn't in DNS or at the registry gets a clear error instead of a graded report", async () => {
+  const r = await runDomainScan("acmedentl.com", { ...scanDeps(), fetchRdap: async () => ({ ok: false, error: "HTTP 404", status: 404 }) });
+  assert.equal(r.notFound, true);
+  assert.match(r.error, /couldn't find acmedentl\.com/);
+});
+
 test("the report carries guides only for warn/fail checks", async () => {
   const r = await runDomainScan(D, scanDeps({ rdap: rdap({ expiry: inDays(30), status: ["active"] }), dns: { txt: {} } }));
   for (const c of r.checks) assert.equal(Boolean(c.guide), c.status === "warn" || c.status === "fail", c.id);
