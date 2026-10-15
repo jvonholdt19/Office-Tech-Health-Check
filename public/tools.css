@@ -22,3 +22,4 @@ a.tool-card:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 
 .redirect-path { margin: 16px 0 0; color: var(--muted); font-size: 14px; word-break: break-all; }
 .redirect-path code { font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .website-report { margin-top: 28px; }
+.grade-cap { margin: 14px 0 0; padding: 10px 14px; border-radius: 10px; background: var(--fail-bg); color: var(--fail); font-weight: 600; font-size: 15px; }

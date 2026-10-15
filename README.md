@@ -50,21 +50,36 @@ Import the GitHub repo into Vercel with the Framework Preset set to **Other**. N
 
 **Website Security Check** makes plain GETs to the homepage over HTTPS and HTTP and follows up to 5 redirects by hand. Every hop is re-resolved and vetted (private, loopback, link-local and metadata addresses are refused) and limited to http(s), default ports, no IP literals and the exact host entered plus its `www.` variant (`acme.com` ↔ `www.acme.com`). A redirect anywhere else, other subdomains included, is reported as an off-site redirect and not followed. `/tools/website?t=acme.com` only pre-fills the field; a scan runs only when the technician presses **Check website**. It never probes other paths or sends payloads.
 
-| Area | Check | Weight |
-|---|---|---|
-| Encryption | Website loads over HTTPS (fail on https → http downgrade) | 15 |
-| Encryption | HTTP → HTTPS redirect | 10 |
-| Encryption | Certificate valid for apex and www, not expiring within 14 days (`checkSsl`) | 15 |
-| Browser protections | HSTS (max-age ≥ 6 months passes, shorter warns, missing fails) | 10 |
-| Browser protections | X-Frame-Options or CSP `frame-ancestors` | 8 |
-| Browser protections | X-Content-Type-Options: nosniff | 5 |
-| Browser protections | Content-Security-Policy (missing = warn) | 6 |
-| Browser protections | Referrer-Policy (missing or leaky = warn) | 3 |
-| Browser protections | Permissions-Policy (missing = warn) | 3 |
-| Page content | Cookie flags: Secure, HttpOnly, SameSite (names only, never values) | 8 |
-| Page content | Mixed-content hints (`http://` in src, stylesheet links, form actions) | 5 |
-| Software | Version numbers in Server / X-Powered-By (warn) | 4 |
-| Software | WordPress core version vs api.wordpress.org (outdated = warn, more than one branch behind = fail) | 8 |
+Grading follows Mozilla HTTP Observatory, the OWASP Secure Headers Project, OWASP ASVS 4.0.3 (V14.4 headers, V3.4 cookies) and SSL Labs basics, softened where a small office would otherwise be marked down for optional extras.
+
+| Area | Check | Weight | Pass / warn / fail |
+|---|---|---|---|
+| Encryption | Website loads over HTTPS | 15 | Fail: HTTP only, or https → http downgrade |
+| Encryption | HTTP → HTTPS redirect | 10 | Warn: plain HTTP isn't redirected |
+| Encryption | Certificate (apex and www) | 15 | Fail: invalid, expired, untrusted, or under 7 days left. Warn: under 21 days, or invalid on www only when the site never uses www |
+| Encryption | TLS version and key (same handshake) | 0 (info) | Fail (not scored, caps grade): TLS 1.0/1.1 only, or RSA under 2048 bits |
+| Browser protections | HSTS | 8 | Pass: max-age ≥ 6 months (includeSubDomains/preload noted, no score change). Warn: shorter. Fail: missing, max-age=0, or sent over plain HTTP only |
+| Browser protections | X-Frame-Options or CSP `frame-ancestors` | 6 | Warn: missing, `ALLOW-FROM` (obsolete) or `*` |
+| Browser protections | Content-Security-Policy | 5 | Pass: restricts scripts. Warn: missing, report-only, no script-src/default-src, `'unsafe-inline'` without nonce/hash, or `*` / `http:` / `https:` sources. A `<meta>` CSP counts only if it restricts scripts |
+| Browser protections | X-Content-Type-Options: nosniff | 4 | Warn: missing |
+| Browser protections | Referrer-Policy | 2 | Pass: missing (browser default is safe) or a safe value. Warn: `unsafe-url`, `no-referrer-when-downgrade` |
+| Browser protections | Permissions-Policy | 0 (info) | Advice only |
+| Browser protections | CORS | 0 (3 when warned) | Info: none or `*`. Warn: credentials allowed for another origin or `null` |
+| Page content | Cookie flags (names only, never values) | 8 | Fail: no `Secure` on HTTPS. Warn: no `HttpOnly` on a session-looking cookie. Missing `SameSite` alone is info (browsers default to Lax) |
+| Page content | Mixed content | 6 | Fail: http:// scripts, iframes, stylesheets or form actions. Warn: http:// images, audio, video |
+| Page content | Subresource Integrity on third-party scripts | 3 | Warn: a script from a smaller third-party host without `integrity=`. Info: only well-known providers (analytics, tag managers, CDNs) |
+| Software | Version numbers in Server / X-Powered-By | 3 | Warn |
+| Software | WordPress core vs api.wordpress.org (only when WordPress is detected) | 8 | Warn: behind on patches or one branch behind. Fail: two or more branches behind |
+
+Grades: A ≥ 90, B ≥ 80, C ≥ 70, D ≥ 60, otherwise F (the same scale as the email scan). On top of that, **hard caps** limit the grade without changing the score number:
+
+| Condition | Grade at most |
+|---|---|
+| No working HTTPS, an https → http downgrade, or an invalid/expired/untrusted certificate | F |
+| TLS older than 1.2 only | B |
+| Plain HTTP not redirected to HTTPS | C |
+
+The report lists the caps that applied in `data.cappedBy` (with `data.uncappedGrade`), and the page shows "Grade capped at … because …". `security.txt` and other paths are deliberately not fetched (that would be path probing).
 
 ## Fix Plan Builder (private)
 
