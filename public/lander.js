@@ -2,6 +2,15 @@
 // limited) and shows only the grade and a pass/warn/fail line per item. All text goes in through
 // textContent; nothing from the response is parsed as HTML.
 const $ = (id) => document.getElementById(id);
+
+// "Built for Local Business" under the hero headline. Confirmed by Josh; set to false to hide it.
+export const LOCAL_NOTE_CONFIRMED = true;
+
+/** Show the local note only when it's confirmed (it starts hidden via the is-hidden class). */
+export function applyLocalNote(el, confirmed = LOCAL_NOTE_CONFIRMED) {
+  if (el) el.classList.toggle("is-hidden", !confirmed);
+}
+applyLocalNote($("local-note"));
 const STATUS_LABEL = { pass: "Good", warn: "Needs attention", fail: "At risk", unknown: "Couldn't verify", info: "Not applicable" };
 
 function showError(msg) {

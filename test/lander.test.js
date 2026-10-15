@@ -290,3 +290,64 @@ test("old production hostname is gone", () => {
   for (const f of ["CLAUDE.md", "README.md", "lib/net.js", "test/session.test.js"]) assert.ok(!read(f).includes("office-tech-health-check.vercel.app"), f);
   assert.match(read("lib/net.js"), /"User-Agent": WEBSITE_UA/);
 });
+
+/* --------------------------- lander redesign --------------------------- */
+
+test("lander: CSP-safe markup, required contact details, noindex, and no third-party resources", () => {
+  const html = read("public/index.html");
+  assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/i.test(html), "no inline <script>");
+  assert.ok(!/<style\b/i.test(html), "no <style>");
+  assert.ok(!/\sstyle\s*=/i.test(html), "no style= attributes");
+  assert.ok(!/\son[a-z]+\s*=/i.test(html), "no on*= attributes");
+  for (const s of ["tel:+15073604479", "mailto:info@nwimpm.com", "Powered by NWIM Project Management", 'href="/tools">Tech sign in</a>', '<meta name="robots" content="noindex, nofollow">', "Know where your office's technology stands."]) {
+    assert.ok(html.includes(s), s);
+  }
+  assert.match(html, /<a class="l-btn l-btn-primary" href="tel:\+15073604479">.*Call 507-360-4479<\/a>/);
+  assert.match(html, /<a class="l-btn l-btn-ghost" href="mailto:info@nwimpm\.com">.*Email info@nwimpm\.com<\/a>/);
+  // Only same-origin resources: no http(s) URLs in src= / <link href> / <use href> (plain <a href> links would be allowed).
+  for (const m of html.matchAll(/<(?!a\b)[a-z]+\b[^>]*\b(?:src|href)\s*=\s*"(https?:)?\/\/[^"]*"/gi)) assert.fail(`external resource: ${m[0]}`);
+  // Other phone numbers or email addresses would be invented contact details.
+  assert.deepEqual([...new Set(html.match(/[\w.+-]+@[\w-]+\.[\w.]+/g))], ["info@nwimpm.com"]);
+  assert.deepEqual([...new Set(html.match(/\b\d{3}-\d{3}-\d{4}\b/g))], ["507-360-4479"]);
+  assert.match(html, /<body class="lander">/);
+  assert.match(html, /<a class="skip-link" href="#main">/);
+});
+
+test("lander: no non-compete wording and no invented claims", () => {
+  const text = read("public/index.html") + read("public/lander.js");
+  const nonCompete = /\b(seo|search engine|google business|reviews?|ranking|marketing|grow your business|more customers)\b/i;
+  const fabricated = /\b(testimonial|trusted by|certified|award|\d+\+? (years|clients|customers))\b/i;
+  assert.ok(!nonCompete.test(text), `non-compete: "${(text.match(nonCompete) || [])[0]}"`);
+  assert.ok(!fabricated.test(text), `invented claim: "${(text.match(fabricated) || [])[0]}"`);
+  assert.ok(!/endorsed|partner/i.test(text), "standards are referenced, never endorsements");
+  // Josh: no unbuilt tool names in public; a general line instead.
+  for (const planned of ["Breach Check", "Exposed Services", "Backup Checklist", "Account Security Checklist", "Device Inventory", "Phishing Quiz", "Planned", "Coming soon"]) assert.ok(!text.includes(planned), planned);
+  assert.ok(text.includes("A growing suite of tools for your business technology."));
+});
+
+test("lander: the SVG sprite is script-free and style-free", () => {
+  const svg = read("public/assets/icons.svg");
+  assert.ok(!/<script/i.test(svg) && !/\sstyle\s*=/i.test(svg) && !/\son[a-z]+\s*=/i.test(svg) && !/href\s*=\s*"https?:/i.test(svg));
+  const used = [...read("public/index.html").matchAll(/icons\.svg#([\w-]+)/g)].map((m) => m[1]);
+  for (const id of new Set(used)) assert.match(svg, new RegExp(`<symbol id="${id}"`), `symbol ${id}`);
+  assert.ok(Buffer.byteLength(read("public/index.html") + read("public/lander.css") + read("public/lander.js") + svg) < 60_000, "page budget");
+});
+
+test("lander: the local note starts hidden and is shown only when confirmed; preview IDs are unchanged", async () => {
+  const html = read("public/index.html");
+  assert.match(html, /<p class="l-local-note is-hidden" id="local-note">Built for Local Business<\/p>/);
+  for (const id of ["preview-form", "preview-domain", "preview-btn", "preview-error", "preview-loading", "preview-result", "preview-grade", "preview-for", "preview-items"]) assert.match(html, new RegExp(`id="${id}"`), id);
+
+  const classes = new Set(["l-local-note", "is-hidden"]);
+  const note = { classList: { toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)) } };
+  const els = { "local-note": note };
+  globalThis.document = { getElementById: (id) => (els[id] ||= { addEventListener() {}, classList: { toggle() {} } }) };
+  const mod = await import(`../public/lander.js?t=${Date.now()}`);
+  assert.equal(mod.LOCAL_NOTE_CONFIRMED, true, "Josh confirmed the wording");
+  assert.equal(classes.has("is-hidden"), false, "shown on load when confirmed");
+  mod.applyLocalNote(note, false);
+  assert.equal(classes.has("is-hidden"), true, "hidden when not confirmed");
+  mod.applyLocalNote(note, true);
+  assert.equal(classes.has("is-hidden"), false);
+  assert.match(read("public/lander.css"), /body\.lander \.is-hidden \{ display: none !important; \}/);
+});

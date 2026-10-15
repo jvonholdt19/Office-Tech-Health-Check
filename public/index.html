@@ -5,70 +5,204 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <!-- Josh: keep the lander out of search results for now. -->
   <meta name="robots" content="noindex, nofollow">
+  <meta name="color-scheme" content="dark">
   <title>Office Tech Health Check</title>
-  <meta name="description" content="IT and security health checks for small offices.">
+  <meta name="description" content="Plain-English IT and security health checks for small offices.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231f6feb'/><path d='M9 16.5l4.5 4.5L23 11.5' stroke='white' stroke-width='3.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/lander.css">
 </head>
-<body>
-  <header class="site-header">
-    <div class="wrap header-inner">
-      <a class="brand" href="/">
-        <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8"/><path d="M9 16.5l4.5 4.5L23 11.5"/></svg>
-        </span>
-        <span class="brand-text">
-          <span class="brand-name">Office Tech Health Check</span>
-          <span class="brand-sub">Powered by NWIM Project Management</span>
+<body class="lander">
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="l-header">
+    <div class="l-wrap l-header-inner">
+      <a class="l-brand" href="/">
+        <span class="l-brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" width="32" height="32"><rect width="32" height="32" rx="8"/><path d="M9 16.5l4.5 4.5L23 11.5"/></svg></span>
+        <span class="l-brand-text">
+          <span class="l-brand-name">Office Tech Health Check</span>
+          <span class="l-brand-sub">Powered by NWIM Project Management</span>
         </span>
       </a>
-      <a class="btn-ghost signin-btn" href="/tools">Tech sign in</a>
+      <a class="l-btn l-btn-ghost signin-btn" href="/tools">Tech sign in</a>
     </div>
   </header>
 
-  <main>
-    <section class="hero">
-      <div class="wrap">
-        <h1>Office Tech Health Check</h1>
-        <p class="lede">IT and security health checks for small offices. We look at the public side of your technology, explain what we find in plain English, and help you fix what matters.</p>
-        <ul class="topics">
-          <li><strong>Email security</strong>: whether someone can send email that looks like it came from you (spoofing protection).</li>
-          <li><strong>Website security</strong>: HTTPS, certificates and the browser protections your site sends.</li>
-          <li><strong>Domain and DNS health</strong>: renewals, transfer locks, nameservers and mail records.</li>
-          <li><strong>Practical fix plans</strong>: clear, prioritised steps your web host or IT provider can follow.</li>
+  <main id="main">
+    <!-- Hero + public preview check -->
+    <section class="l-hero" aria-labelledby="hero-title">
+      <div class="l-wrap l-hero-grid">
+        <div class="l-hero-copy">
+          <h1 id="hero-title">Know where your office's technology stands.</h1>
+          <p class="l-lede">Plain-English IT and security health checks for small offices: email, website and domain, checked from the outside without touching your systems.</p>
+          <!-- Josh: local note confirmed as "Built for Local Business". Shown when LOCAL_NOTE_CONFIRMED is true in lander.js. -->
+          <p class="l-local-note is-hidden" id="local-note">Built for Local Business</p>
+        </div>
+
+        <div class="l-card l-preview" aria-labelledby="preview-title">
+          <h2 id="preview-title">Quick email security check (preview)</h2>
+          <p class="l-preview-note">A limited preview using public records only: SPF, DMARC and your website's HTTPS certificate. Nothing is installed and we never log in to anything.</p>
+          <form id="preview-form" class="l-form" novalidate>
+            <label for="preview-domain" class="sr-only">Business domain</label>
+            <input id="preview-domain" type="text" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="yourbusiness.com" required>
+            <button type="submit" id="preview-btn" class="l-btn l-btn-primary">Check</button>
+          </form>
+          <p class="form-error" id="preview-error" role="alert" hidden></p>
+          <p class="l-loading" id="preview-loading" hidden><span class="spinner small" aria-hidden="true"></span> Checking public records…</p>
+
+          <div class="preview-result" id="preview-result" hidden>
+            <div class="preview-head">
+              <div class="grade" id="preview-grade" aria-label="Preview grade">–</div>
+              <div>
+                <p class="summary-domain" id="preview-for"></p>
+                <p class="preview-limited">Preview of 3 public checks only. The full check covers much more.</p>
+              </div>
+            </div>
+            <ul class="preview-items" id="preview-items"></ul>
+            <p class="preview-cta">Want the full check and a fix plan? Call NWIM Project Management at <a href="tel:+15073604479">507-360-4479</a> or email <a href="mailto:info@nwimpm.com">info@nwimpm.com</a>.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- What we check (only what the tools in this repo actually do) -->
+    <section class="l-section" aria-labelledby="checks-title">
+      <div class="l-wrap">
+        <h2 id="checks-title">What we check</h2>
+        <p class="l-section-lede">Three checks, run from the outside using public information.</p>
+        <div class="l-cards">
+          <article class="l-card">
+            <svg class="l-icon" width="28" height="28" aria-hidden="true"><use href="/assets/icons.svg#mail-shield"/></svg>
+            <h3>Email security</h3>
+            <ul class="l-list">
+              <li>SPF, DMARC and DKIM records</li>
+              <li>Which email provider the domain uses</li>
+              <li>Protection against spoofed email sent in your name</li>
+              <li>Domain registration and website certificate basics</li>
+            </ul>
+          </article>
+          <article class="l-card">
+            <svg class="l-icon" width="28" height="28" aria-hidden="true"><use href="/assets/icons.svg#globe-lock"/></svg>
+            <h3>Website security</h3>
+            <ul class="l-list">
+              <li>HTTPS, redirects, certificate validity and expiry</li>
+              <li>Security headers: HSTS, CSP, clickjacking protection, nosniff</li>
+              <li>Cookie flags and mixed content on the homepage</li>
+              <li>Software versions on show, including the WordPress version</li>
+            </ul>
+          </article>
+          <article class="l-card">
+            <svg class="l-icon" width="28" height="28" aria-hidden="true"><use href="/assets/icons.svg#dns"/></svg>
+            <h3>Domain health</h3>
+            <ul class="l-list">
+              <li>Renewal date, transfer lock and domain status</li>
+              <li>Nameservers, including ones that don't answer for the domain</li>
+              <li>SOA, CAA, MX and DNSSEC records</li>
+              <li>Forgotten DNS records that point at services which no longer exist</li>
+            </ul>
+          </article>
+        </div>
+        <p class="l-suite"><svg class="l-icon-inline" width="20" height="20" aria-hidden="true"><use href="/assets/icons.svg#checklist"/></svg> A growing suite of tools for your business technology.</p>
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section class="l-section l-light" aria-labelledby="how-title">
+      <div class="l-wrap">
+        <h2 id="how-title">How it works</h2>
+        <ol class="l-steps">
+          <li>
+            <h3>We run passive checks</h3>
+            <p>Public DNS, the domain registry (RDAP) and a single visit to your homepage. Nothing is installed: no logins, no scans of your network.</p>
+          </li>
+          <li>
+            <h3>You get a clear report</h3>
+            <p>A letter grade, red, yellow and green findings, and why each one matters, in plain English.</p>
+          </li>
+          <li>
+            <h3>We help you fix it</h3>
+            <p>Step-by-step guides for common setups (Cloudflare, WordPress, Apache, Nginx, IIS and website builders), a ready-to-send message for your web host, and a printable PDF.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- What you get: sample report (built in HTML/CSS, example data, not interactive) -->
+    <section class="l-section" aria-labelledby="sample-title">
+      <div class="l-wrap l-sample-grid">
+        <div>
+          <h2 id="sample-title">What you get</h2>
+          <p class="l-section-lede">Every finding comes with a status, the reason it matters and, where there's something to change, a guide for your setup and a message you can forward to whoever looks after your website.</p>
+          <ul class="l-list l-get-list">
+            <li><svg class="l-icon-inline" width="20" height="20" aria-hidden="true"><use href="/assets/icons.svg#report"/></svg> A letter grade with red, yellow and green findings</li>
+            <li><svg class="l-icon-inline" width="20" height="20" aria-hidden="true"><use href="/assets/icons.svg#checklist"/></svg> Step-by-step "How to fix" guides</li>
+            <li><svg class="l-icon-inline" width="20" height="20" aria-hidden="true"><use href="/assets/icons.svg#mail"/></svg> A ready-to-send message for your web host</li>
+            <li><svg class="l-icon-inline" width="20" height="20" aria-hidden="true"><use href="/assets/icons.svg#lock"/></svg> A printable PDF of the report</li>
+          </ul>
+        </div>
+        <figure class="l-sample" aria-labelledby="sample-caption">
+          <figcaption id="sample-caption">Sample report (example data)</figcaption>
+          <p class="sr-only">An example Website Security Check report for example.com: grade C. HTTPS and the certificate are good; HSTS and clickjacking protection need attention; cookie flags are at risk; no mixed content. The HSTS finding is expanded to show a "How to fix" step.</p>
+          <div class="l-mock" aria-hidden="true">
+            <div class="l-mock-head">
+              <div class="l-mock-grade">C</div>
+              <div class="l-mock-title">
+                <span class="l-mock-tool">Website Security Check</span>
+                <span class="l-mock-domain">example.com</span>
+              </div>
+              <span class="l-mock-chip">Save as PDF</span>
+            </div>
+            <ul class="l-mock-rows">
+              <li><span class="pill" data-status="pass">Good</span> Website loads over HTTPS</li>
+              <li><span class="pill" data-status="pass">Good</span> Security certificate</li>
+              <li class="l-mock-open">
+                <span class="pill" data-status="warn">Needs attention</span> Strict-Transport-Security (HSTS)
+                <div class="l-mock-fix">
+                  <span class="l-mock-fix-title">How to fix · Nginx</span>
+                  <code>add_header Strict-Transport-Security "max-age=300" always;</code>
+                  <span class="l-mock-fix-note">Start small, then raise max-age once everything works.</span>
+                </div>
+              </li>
+              <li><span class="pill" data-status="warn">Needs attention</span> Clickjacking protection</li>
+              <li><span class="pill" data-status="fail">At risk</span> Cookie security flags</li>
+              <li><span class="pill" data-status="pass">Good</span> Mixed content</li>
+            </ul>
+          </div>
+        </figure>
+      </div>
+    </section>
+
+    <!-- Standards: only ones the checks in lib/ actually reference. No endorsement implied. -->
+    <section class="l-section l-light" aria-labelledby="standards-title">
+      <div class="l-wrap">
+        <h2 id="standards-title">Built on recognised standards</h2>
+        <p class="l-section-lede">Our checks follow guidance from:</p>
+        <ul class="l-standards">
+          <li><svg class="l-icon-inline" width="20" height="20" aria-hidden="true"><use href="/assets/icons.svg#standard"/></svg> Mozilla HTTP Observatory scoring (website headers)</li>
+          <li><svg class="l-icon-inline" width="20" height="20" aria-hidden="true"><use href="/assets/icons.svg#standard"/></svg> OWASP Secure Headers Project and ASVS (headers and cookies)</li>
+          <li><svg class="l-icon-inline" width="20" height="20" aria-hidden="true"><use href="/assets/icons.svg#standard"/></svg> Qualys SSL Labs rating guide (certificates and TLS)</li>
+          <li><svg class="l-icon-inline" width="20" height="20" aria-hidden="true"><use href="/assets/icons.svg#standard"/></svg> IETF RFCs: SPF (RFC 7208), DMARC (RFC 7489), DKIM (RFC 6376), DNS (RFC 1034, 1912, 2182), CAA (RFC 8659), null MX (RFC 7505)</li>
+          <li><svg class="l-icon-inline" width="20" height="20" aria-hidden="true"><use href="/assets/icons.svg#standard"/></svg> ICANN policies (EPP status codes, expired registration recovery)</li>
         </ul>
       </div>
     </section>
 
-    <section class="wrap preview" aria-labelledby="preview-title">
-      <h2 id="preview-title">Quick email security check (preview)</h2>
-      <p class="preview-note">A limited preview using public records only: SPF, DMARC and your website's HTTPS certificate. Nothing is installed and we never log in to anything.</p>
-      <form id="preview-form" class="scan-form" novalidate>
-        <label for="preview-domain" class="sr-only">Business domain</label>
-        <input id="preview-domain" type="text" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="yourbusiness.com" required>
-        <button type="submit" id="preview-btn">Check</button>
-      </form>
-      <p class="form-error" id="preview-error" role="alert" hidden></p>
-      <p class="loading-line" id="preview-loading" hidden><span class="spinner small" aria-hidden="true"></span> Checking public records…</p>
-
-      <div class="preview-result" id="preview-result" hidden>
-        <div class="preview-head">
-          <div class="grade" id="preview-grade" aria-label="Preview grade">–</div>
-          <div>
-            <p class="summary-domain" id="preview-for"></p>
-            <p class="preview-limited">Preview of 3 public checks only. The full check covers much more.</p>
-          </div>
+    <!-- Call to action -->
+    <section class="l-cta" aria-labelledby="cta-title">
+      <div class="l-wrap l-cta-inner">
+        <h2 id="cta-title">Want the full check and a fix plan?</h2>
+        <div class="l-cta-buttons">
+          <a class="l-btn l-btn-primary" href="tel:+15073604479"><svg width="20" height="20" aria-hidden="true"><use href="/assets/icons.svg#phone"/></svg> Call 507-360-4479</a>
+          <a class="l-btn l-btn-ghost" href="mailto:info@nwimpm.com"><svg width="20" height="20" aria-hidden="true"><use href="/assets/icons.svg#mail"/></svg> Email info@nwimpm.com</a>
         </div>
-        <ul class="preview-items" id="preview-items"></ul>
-        <p class="preview-cta">Want the full check and a fix plan? Call NWIM Project Management at <a href="tel:+15073604479">507-360-4479</a> or email <a href="mailto:info@nwimpm.com">info@nwimpm.com</a>.</p>
       </div>
     </section>
   </main>
 
-  <footer class="site-footer">
-    <div class="wrap">
-      <p>Office Tech Health Check · NWIM Project Management · <a href="tel:+15073604479">507-360-4479</a> · <a href="mailto:info@nwimpm.com">info@nwimpm.com</a></p>
+  <footer class="l-footer">
+    <div class="l-wrap">
+      <p class="l-footer-main">Office Tech Health Check · Powered by NWIM Project Management · <a href="tel:+15073604479">507-360-4479</a> · <a href="mailto:info@nwimpm.com">info@nwimpm.com</a> · <a href="/tools">Tech sign in</a></p>
+      <p class="l-footer-note">Checks use public information only. Results are a snapshot and can change.</p>
     </div>
   </footer>
 
