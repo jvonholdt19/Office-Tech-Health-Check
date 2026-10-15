@@ -1,16 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runScan } from "../lib/scan.js";
-import { buildPlan, recommendSpf, recommendDmarc } from "../lib/plan.js";
+import { buildPlan, recommendSpf, recommendDmarc, packageFit, periodLabel, formatPrice } from "../lib/plan.js";
+import * as CONFIG from "../lib/config.js";
 import { identifyDnsHost } from "../lib/checks/dnshost.js";
 import handler, { passcodeMatches } from "../api/plan.js";
 import { setStoreForTests, memoryStore } from "../lib/store.js";
 import { fakeDeps, goodTls, rdapData, DKIM_RECORD } from "./fakes.js";
 
-const PRICES = { "domain-security": 75, "domain-renewal": 50, spf: 100, dkim: 75, dmarc: 200, ssl: 100, "https-redirect": 50 };
-const PKG = [{ id: "pkg", name: "Package", price: 450, covers: Object.keys(PRICES), blurb: "All of it." }];
 const BIZ = { name: "NWIM PM", fullName: "x", contactEmail: "josh@nwimpm.com", bookingUrl: "https://cal.com/x", dmarcReportAddress: "dmarc@nwimpm.com" };
-const opts = { business: BIZ, prices: PRICES, packages: PKG, quotes: { "email-migration": { title: "Move email", from: 1500 } }, monthly: null };
+// The real packages, recurring options and founding offer from lib/config.js (the single source of truth).
+const opts = { business: BIZ, quotes: { "email-migration": { title: "Move email", from: 1500 } } };
 
 async function neglectedOffice() {
   const d = "old.example.net";
@@ -60,18 +60,29 @@ test("neglected office: exact records, urgent renewal, package pricing and proje
   assert.ok(dmarc.steps.some((s) => s.includes("*._report._dmarc")), "explains external report authorization");
   const dom = plan.items.find((i) => i.id === "domain-security");
   assert.match(dom.title, /urgent/);
-  assert.equal(dom.price, 125);
-  assert.equal(plan.pricing.itemsTotal, 650);
-  assert.equal(plan.pricing.package.price, 450);
-  assert.equal(plan.pricing.package.savings, 200);
-  assert.equal(plan.pricing.recommendedTotal, 450);
+  assert.ok(plan.items.every((it) => !("price" in it) && !("priceKeys" in it)), "no per-fix prices in the plan");
+  // One domain, one email provider, no extra senders: Standard, with Plus shown alongside.
+  assert.deepEqual(plan.pricing.packages.map((p) => [p.id, p.name, p.label, p.recommended]), [["standard", "Standard", "$350", true], ["plus", "Plus", "$550", false]]);
+  assert.deepEqual(plan.pricing.recommended, { id: "standard", name: "Standard", price: 350, label: "$350", reasons: [] });
+  assert.equal(plan.pricing.recommendedTotal, 350);
+  assert.deepEqual(plan.pricing.recurring.map((r) => [r.name, r.label]), [["Quarterly Checkups", "$150/year"], ["Monthly Watch", "$35/month"]]);
+  assert.deepEqual(plan.pricing.founding, {
+    name: "Founding client offer",
+    limit: 3,
+    price: 210,
+    label: "$210",
+    packageName: "Standard",
+    regularLabel: "$350",
+    bonus: { name: "Quarterly Checkups", regularLabel: "$150/year" },
+    terms: "For our first 3 clients only, in exchange for a short written testimonial and permission to use your business name.",
+  });
   assert.equal(plan.current.grade, "F");
   assert.equal(plan.projected.grade, "A");
   assert.equal(plan.quoteItems[0].id, "email-migration");
   assert.ok(plan.accessNeeded.some((a) => /GoDaddy/.test(a)));
 });
 
-test("a single finding produces a single item and no package", async () => {
+test("a single finding produces a single item and the Standard package", async () => {
   const d = "example.com";
   const report = await runScan(d, fakeDeps({
     mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
@@ -82,8 +93,8 @@ test("a single finding produces a single item and no package", async () => {
   }));
   const plan = buildPlan(report, opts);
   assert.deepEqual(plan.items.map((i) => i.id), ["dmarc"]);
-  assert.equal(plan.pricing.package, null);
-  assert.equal(plan.pricing.recommendedTotal, 200);
+  assert.equal(plan.pricing.recommended.id, "standard");
+  assert.equal(plan.pricing.recommendedTotal, 350);
 });
 
 test("a healthy domain gets an empty plan", async () => {
@@ -98,6 +109,9 @@ test("a healthy domain gets an empty plan", async () => {
   const plan = buildPlan(report, opts);
   assert.equal(plan.nothingToFix, true);
   assert.equal(plan.pricing.recommendedTotal, 0);
+  assert.deepEqual(plan.pricing.packages, [], "no fix package when there's nothing to fix");
+  assert.equal(plan.pricing.founding, null);
+  assert.equal(plan.pricing.recurring.length, 2, "ongoing checkups are still offered");
 });
 
 test("unverifiable DKIM becomes a free 'confirm at kickoff' item, not a paid fix", async () => {
@@ -233,4 +247,91 @@ test("existing SPF is replaced, showing the current value next to the new one", 
   assert.equal(spf.records[0].current, "v=spf1 include:mailgun.org +all");
   assert.equal(spf.records[0].value, "v=spf1 include:mailgun.org include:_spf.google.com ~all");
   assert.ok(spf.found.some((f) => /\+all/.test(f)));
+});
+
+/* ------------------------------- pricing (Oct 15 2026) ------------------------------- */
+
+test("approved prices live in lib/config.js: Standard $350, Plus $550, Quarterly $150/year, Monthly $35/month, founding $210", () => {
+  assert.deepEqual(CONFIG.PACKAGES.map((p) => [p.id, p.price]), [["standard", 350], ["plus", 550]]);
+  assert.match(CONFIG.PACKAGES[0].scope, /one domain and one email provider/i);
+  assert.match(CONFIG.PACKAGES[1].scope, /extra sending services or messy records/i);
+  assert.deepEqual(CONFIG.RECURRING_OPTIONS.map((r) => [r.name, r.price, r.period]), [["Quarterly Checkups", 150, "year"], ["Monthly Watch", 35, "month"]]);
+  assert.deepEqual([CONFIG.FOUNDING_OFFER.price, CONFIG.FOUNDING_OFFER.limit, CONFIG.FOUNDING_OFFER.packageId, CONFIG.FOUNDING_OFFER.bonusRecurringId], [210, 3, "standard", "quarterly-checkups"]);
+  assert.deepEqual(CONFIG.QUOTE_ITEMS["email-migration"], { title: "Move email to Google Workspace or Microsoft 365", from: 1500 }, "the migration quote is unchanged");
+  assert.equal(CONFIG.ITEM_PRICES, undefined, "no per-fix prices");
+  assert.equal(CONFIG.MONTHLY_OFFER, undefined, "the old $300 Monthly Tech Desk is gone");
+  const text = JSON.stringify([CONFIG.PACKAGES, CONFIG.RECURRING_OPTIONS, CONFIG.FOUNDING_OFFER]);
+  assert.ok(!/per[- ]user|user adds|removals/i.test(text), "flat fees per business, never per user");
+  assert.ok(!/\bSEO\b|marketing|Google Business|reviews?\b/i.test(text), "non-compete");
+});
+
+test("period labels: /year and /month from the config, never assumed", () => {
+  assert.equal(periodLabel(150, "year"), "$150/year");
+  assert.equal(periodLabel(35, "month"), "$35/month");
+  assert.equal(formatPrice(1500), "$1,500");
+  assert.throws(() => periodLabel(35, "week"), /Unknown billing period/);
+  assert.throws(() => periodLabel(35, undefined), /Unknown billing period/);
+});
+
+test("Plus is recommended for extra sending services or messy records; Standard otherwise", () => {
+  const google = { key: "google", name: "Google Workspace" };
+  const report = (checks) => ({ checks });
+  const spf = (records, codes = []) => ({ id: "spf", status: "warn", data: { records, codes } });
+  assert.deepEqual(packageFit(report([spf(["v=spf1 include:_spf.google.com ~all"])]), google), { id: "standard", reasons: [] }, "only the email provider");
+  const extra = packageFit(report([spf(["v=spf1 include:_spf.google.com include:sendgrid.net include:servers.mcsv.net ~all"])]), google);
+  assert.equal(extra.id, "plus");
+  assert.match(extra.reasons[0], /also sent through SendGrid, Mailchimp/);
+  assert.equal(packageFit(report([spf(["v=spf1 redirect=_spf.other-host.example.net"])]), google).id, "plus", "a redirect to another service counts too");
+  assert.equal(packageFit(report([spf(["v=spf1 include:_spf.google.com ~all", "v=spf1 -all"], ["multiple"])]), google).id, "plus", "duplicate SPF records");
+  assert.equal(packageFit(report([spf(["v=spf1 include:_spf.google.com ~all"], ["too-many-lookups"])]), google).id, "plus", "SPF over its limits");
+  assert.equal(packageFit(report([{ id: "dmarc", status: "fail", data: { code: "multiple", records: ["a", "b"] } }]), google).id, "plus", "duplicate DMARC records");
+  assert.equal(packageFit(report([{ id: "email-platform", status: "warn", data: { code: "mixed-mx", mx: ["a", "b"] } }]), google).id, "plus", "mail split across providers");
+  assert.equal(packageFit(report([]), google).id, "standard");
+});
+
+test("a plan for a business that also sends through another service recommends Plus, and says why", async () => {
+  const d = "example.com";
+  const report = await runScan(d, fakeDeps({
+    mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
+    txt: { [d]: ["v=spf1 include:_spf.google.com include:sendgrid.net ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], "sendgrid.net": ["v=spf1 ip4:5.6.7.8 ~all"], [`google._domainkey.${d}`]: [DKIM_RECORD] },
+    tls: { [d]: goodTls, [`www.${d}`]: goodTls },
+    http: { ok: true, status: 301, location: `https://${d}/` },
+    rdap: rdapData(),
+  }));
+  const plan = buildPlan(report, opts);
+  assert.equal(plan.pricing.recommended.id, "plus");
+  assert.equal(plan.pricing.recommendedTotal, 550);
+  assert.deepEqual(plan.pricing.packages.map((p) => [p.id, p.recommended]), [["standard", false], ["plus", true]]);
+  assert.match(plan.pricing.recommended.reasons.join(" "), /SendGrid/);
+});
+
+test("Fix Plan page: shows both packages and both recurring options with their own period; the founding offer is a toggle, off by default", async () => {
+  const { readFileSync } = await import("node:fs");
+  const js = readFileSync(new URL("../public/plan.js", import.meta.url), "utf8");
+  const html = readFileSync(new URL("../public/plan.html", import.meta.url), "utf8");
+  assert.ok(!/\/month/.test(js), "no hard-coded /month: every period label comes from the plan (lib/config.js)");
+  assert.ok(!/money\(it\.price\)|itemsTotal|pricing\.package\b|pricing\.monthly/.test(js), "no per-fix prices or the old single package/monthly line");
+  assert.match(js, /p\.packages\.map\(\(pk\) =>/);
+  assert.match(js, /plan\.pricing\.recurring\.map\(\(r\) =>/);
+  assert.match(js, /h\("span", \{ class: "price" \}, r\.label\)/);
+  assert.match(js, /let showFoundingOffer = false;/);
+  assert.match(js, /if \(p\.founding && showFoundingOffer\)/);
+  assert.match(js, /showFoundingOffer = false;\n\s+\$\("founding-toggle"\)\.checked = false;/, "reset to off for every new plan");
+  assert.match(html, /<p class="founding-toggle no-print" id="founding-row" hidden>\s*<label class="check-row"><input type="checkbox" id="founding-toggle"> Show the founding client offer/);
+  assert.ok(!/<input type="checkbox" id="founding-toggle"[^>]*checked/.test(html), "unchecked by default");
+  assert.ok(!/\$\d/.test(html) && !/\$\d/.test(js.replace(/`\$\$\{/g, "")), "no prices written into the page: they all come from lib/config.js");
+});
+
+test("the public lander shows no prices", async () => {
+  const { readFileSync } = await import("node:fs");
+  for (const f of ["../public/index.html", "../public/lander.js"]) assert.ok(!/\$\s?\d|\/month|\/year|per user/i.test(readFileSync(new URL(f, import.meta.url), "utf8")), f);
+});
+
+test("the README's price table matches lib/config.js", async () => {
+  const { readFileSync } = await import("node:fs");
+  const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
+  for (const p of CONFIG.PACKAGES) assert.ok(readme.includes(`| ${p.name} fix (one-time) | ${formatPrice(p.price)} |`), p.name);
+  for (const r of CONFIG.RECURRING_OPTIONS) assert.ok(readme.includes(`| ${r.name} (optional) | ${periodLabel(r.price, r.period)} |`), r.name);
+  assert.ok(readme.includes(`a Standard fix for ${formatPrice(CONFIG.FOUNDING_OFFER.price)}`));
+  assert.ok(readme.includes(`from ${formatPrice(CONFIG.QUOTE_ITEMS["email-migration"].from)}`));
 });

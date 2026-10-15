@@ -8,7 +8,7 @@ import { fakeDeps, DKIM_RECORD } from "./fakes.js";
 
 const opts = {
   business: { name: "NWIM PM", fullName: "x", contactEmail: "josh@nwimpm.com", bookingUrl: "x", dmarcReportAddress: "dmarc@nwimpm.com" },
-  prices: { spf: 100, dkim: 75, dmarc: 200 }, packages: [], quotes: {}, monthly: null,
+  packages: [], quotes: {}, recurring: [], founding: null,
 };
 
 // Include trees shaped like the real ones: Google's include costs 4 lookups in total.
