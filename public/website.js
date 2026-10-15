@@ -22,13 +22,22 @@ function headline(r) {
 
 const DIFFICULTY_LABEL = { easy: "Easy", moderate: "Moderate", advanced: "Advanced" };
 const POSSIBLE_LABEL = { true: "Possible", partial: "Partly possible", false: "Usually not possible" };
-const PLATFORM_KEY = "ohc-fix-platform";
+export const DISCLAIMER = "Back up your site and test changes first. Your web host or developer should apply these changes.";
 
-// Which platform the technician picked for this client ("" = all). Kept per browser for convenience only.
+// Which platform the technician picked for this client ("" = all). Saved per domain in this browser
+// only, so a new scan of a different site starts with all platforms again.
+const platformKey = (domain) => `ohc-fix-platform:${domain}`;
 let platformChoice = "";
-try {
-  platformChoice = localStorage.getItem(PLATFORM_KEY) || "";
-} catch {}
+let reportDomain = "";
+function loadPlatformChoice(domain) {
+  reportDomain = domain;
+  try {
+    platformChoice = localStorage.getItem(platformKey(domain)) || "";
+  } catch {
+    platformChoice = "";
+  }
+  if (!PLATFORM_NAMES[platformChoice]) platformChoice = "";
+}
 
 /**
  * Copy `text` to the clipboard and say so on the button. Without clipboard access (http://, old
@@ -78,6 +87,7 @@ function guideBlock(c) {
   return h("details", { class: "fix-guide", id: `fix-${c.id}` },
     h("summary", {}, "How to fix"),
     g.risk ? h("div", { class: "risk", role: "note" }, h("strong", {}, "Before you change anything: "), g.risk) : null,
+    g.note ? h("p", { class: "guide-note" }, h("strong", {}, "Good to know: "), g.note) : null,
     h("div", { class: "platforms" }, g.platforms.map(platformSection)),
     h("div", { class: "message-block" },
       h("h5", {}, "Message to your web host or developer"),
@@ -134,7 +144,8 @@ function platformPicker() {
   select.addEventListener("change", () => {
     platformChoice = select.value;
     try {
-      localStorage.setItem(PLATFORM_KEY, platformChoice);
+      if (platformChoice) localStorage.setItem(platformKey(reportDomain), platformChoice);
+      else localStorage.removeItem(platformKey(reportDomain));
     } catch {}
     applyPlatformFilter();
   });
@@ -162,6 +173,7 @@ function render(r) {
   const path = (hops) => hops.map((x) => `${x.status} ${x.url}`).join(" → ");
   const stopped = r.redirects.stopped && (r.redirects.stopped.https || r.redirects.stopped.http);
 
+  loadPlatformChoice(r.target);
   const byId = Object.fromEntries(r.checks.map((c) => [c.id, c]));
   // Only mention a cap when it actually lowered the grade (an F site capped "at C" isn't capped).
   const caps = r.data && r.data.cappedBy && r.data.uncappedGrade !== r.grade ? r.data.cappedBy : null;
@@ -174,6 +186,8 @@ function render(r) {
       h("p", {}, `${new Date(r.scannedAt).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })} · Grade ${r.grade || "not graded"}${r.score !== null ? ` (${r.score}/100)` : ""} · Prepared by Office Tech`),
       h("p", { id: "print-platform" }),
     ),
+    // Shown on screen and in print, straight after the print header.
+    h("p", { class: "disclaimer", role: "note" }, DISCLAIMER),
     h("div", { class: "summary-card" },
       h("div", { class: "grade", "data-grade": r.grade || "none", "aria-label": "Overall grade" }, r.grade || "–"),
       h("div", { class: "summary-text" },

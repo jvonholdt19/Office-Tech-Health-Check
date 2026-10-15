@@ -164,11 +164,43 @@ function assertWellFormedXml(xml, label) {
   assert.equal(ok.length, tags.length, `${label}: every tag well-formed`);
 }
 
-test("IIS snippets are well-formed XML", () => {
+test("IIS snippets are well-formed XML fragments to merge, with <remove> before every <add>", () => {
   const xml = allSnippets().filter((s) => s.platform === "iis");
-  assert.ok(xml.length >= 6);
-  for (const s of xml) assertWellFormedXml(s.code, `${s.id}/iis`);
+  assert.ok(xml.length >= 8);
+  for (const s of xml) {
+    // Fragments are merged into existing web.config sections, so check them inside a synthetic root.
+    assertWellFormedXml(`<fragment>${s.code}</fragment>`, `${s.id}/iis`);
+    assert.ok(!/<configuration>/.test(s.code), `${s.id}/iis: no whole <configuration> block`);
+    assert.match(s.code, /<!-- web\.config: inside <system\.webServer>/, `${s.id}/iis: says which section to merge into`);
+    if (/<customHeaders>|<add name=/.test(s.code)) {
+      for (const m of s.code.matchAll(/<add name="([^"]+)"/g)) {
+        const at = s.code.indexOf(m[0]);
+        assert.ok(s.code.lastIndexOf(`<remove name="${m[1]}" />`, at) !== -1, `${s.id}/iis: <remove name="${m[1]}"/> before its <add>`);
+      }
+    }
+  }
+  for (const [id, g] of Object.entries(FIX_GUIDES)) {
+    const iis = g.platforms.find((p) => p.id === "iis");
+    if (iis.snippet) assert.ok(iis.steps.some((t) => /Don't paste a second <configuration> block/.test(t)), `${id}/iis steps say merge, don't paste`);
+  }
   assert.throws(() => assertWellFormedXml("<configuration><a></configuration>", "bad"));
+});
+
+test("Cloudflare: the one-click Managed Transform is offered where it covers the header, with the manual rule kept", () => {
+  const cf = (id) => FIX_GUIDES[id].platforms.find((p) => p.id === "cloudflare").steps.join(" ");
+  for (const id of ["clickjacking", "nosniff", "referrer-policy"]) {
+    assert.match(cf(id), /Rules Settings page, open the Managed Transforms tab and turn on Add security headers/, id);
+    assert.match(cf(id), /Response Header Transform Rule/, `${id}: manual option kept`);
+    assert.ok(FIX_GUIDES[id].sources.some((u) => /managed-transforms/.test(u)), `${id}: source`);
+  }
+  assert.match(cf("version-disclosure"), /Remove "X-Powered-By" headers/);
+  for (const id of ["hsts", "csp", "permissions-policy"]) assert.match(cf(id), /doesn't include this header/, `${id}: not covered by the managed transform`);
+});
+
+test("CSP guide notes that report-only violations show in the console and no reporting endpoint is set up", () => {
+  assert.match(FIX_GUIDES.csp.note, /browser console/);
+  assert.match(FIX_GUIDES.csp.note, /reporting endpoint/);
+  assert.equal(guideFor("csp", "weak").note, FIX_GUIDES.csp.note, "variants keep the note");
 });
 
 test("messages: every placeholder is filled and nothing else about who ran the scan", async () => {

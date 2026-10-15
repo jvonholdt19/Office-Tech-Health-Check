@@ -59,11 +59,14 @@ a.tool-card:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 
 .grade-cap a { color: inherit; }
 .fix-card a { color: inherit; }
 .print-header { display: none; }
+.disclaimer { margin: 14px 0 0; padding: 10px 14px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); font-weight: 600; font-size: 15px; }
+.guide-note { font-size: 14px; background: var(--info-bg); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; }
 
 @media print {
   .print-header { display: block; border-bottom: 2px solid #000; margin-bottom: 14px; padding-bottom: 8px; }
   .print-header p { margin: 2px 0; }
   .print-title { font-size: 20px; font-weight: 800; }
+  .disclaimer { border: 1px solid #999; background: #fff; margin: 0 0 14px; }
   .copy-btn, .platform-picker, .back-link, #website-form { display: none !important; }
   .fix-guide, .platform { background: #fff; border-color: #bbb; }
   .platform[hidden] { display: none !important; }
