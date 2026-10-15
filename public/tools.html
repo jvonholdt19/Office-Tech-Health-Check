@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Technician Tools</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231f6feb'/><path d='M9 16.5l4.5 4.5L23 11.5' stroke='white' stroke-width='3.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/plan.css">
+  <link rel="stylesheet" href="/tools.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="/tools">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8"/><path d="M9 16.5l4.5 4.5L23 11.5"/></svg></span>
+        <span class="brand-name">Technician Tools <span class="private-tag">Private</span></span>
+      </a>
+      <nav class="header-links">
+        <a class="header-link" href="/plan">Fix Plan</a>
+        <button type="button" class="link-btn" id="lock-btn" hidden>Sign out</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="gate" id="gate">
+      <h1>Technician Tools</h1>
+      <p class="lede">Sign in to use the technician tools.</p>
+      <form id="gate-form" class="scan-form" autocomplete="off">
+        <label for="access-code" class="sr-only">Technician access code</label>
+        <input id="access-code" type="password" placeholder="Technician access code" autocomplete="current-password" required>
+        <button type="submit">Sign in</button>
+      </form>
+      <p class="form-error" id="gate-error" role="alert" hidden></p>
+    </section>
+
+    <section class="dashboard" id="dashboard" hidden>
+      <h1>All tools</h1>
+      <p class="lede">Passive checks and checklists for client IT health.</p>
+      <div class="tool-grid" id="tool-grid"></div>
+    </section>
+  </main>
+
+  <script src="/tools.js" type="module"></script>
+</body>
+</html>

@@ -8,6 +8,9 @@
   "scripts": {
     "dev": "node scripts/dev-server.js",
     "test": "node --test test/*.test.js",
-    "scan": "node scripts/scan-cli.js"
+    "scan": "node scripts/scan-cli.js",
+    "website": "node scripts/website-cli.js",
+    "lint": "node scripts/lint.js",
+    "build": "npm run lint && npm test"
   }
 }

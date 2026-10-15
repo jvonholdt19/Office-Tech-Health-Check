@@ -17,6 +17,9 @@
     },
     "api/plan-confirm.js": {
       "maxDuration": 30
+    },
+    "api/website.js": {
+      "maxDuration": 30
     }
   },
   "headers": [
@@ -43,6 +46,32 @@
     },
     {
       "source": "/plan",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
+    },
+    {
+      "source": "/tools",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
+    },
+    {
+      "source": "/tools/(.*)",
       "headers": [
         {
           "key": "X-Robots-Tag",

@@ -1,4 +1,4 @@
-// Local preview without the Vercel CLI: serves /public and routes /api/scan to the function.
+// Local preview without the Vercel CLI: serves /public (with clean URLs, like Vercel) and routes /api/* to the functions.
 import http from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
@@ -8,6 +8,7 @@ import planHandler from "../api/plan.js";
 import verifyHandler from "../api/verify.js";
 import sessionHandler from "../api/session.js";
 import confirmHandler from "../api/plan-confirm.js";
+import websiteHandler from "../api/website.js";
 import { setStoreForTests, memoryStore } from "../lib/store.js";
 
 // Local preview only: without Supabase credentials, keep rate limits and the audit log in memory so
@@ -29,8 +30,10 @@ http
     if (pathname === "/api/verify") return verifyHandler(req, res);
     if (pathname === "/api/session") return sessionHandler(req, res);
     if (pathname === "/api/plan/confirm") return confirmHandler(req, res);
-    if (pathname === "/plan") req.url = "/plan.html";
-    const file = normalize(join(root, pathname === "/" ? "index.html" : pathname === "/plan" ? "plan.html" : pathname));
+    if (pathname === "/api/website") return websiteHandler(req, res);
+    // cleanUrls: /plan → plan.html, /tools → tools.html, /tools/website → tools/website.html
+    const rel = pathname === "/" ? "index.html" : extname(pathname) ? pathname : `${pathname.replace(/\/+$/, "")}.html`;
+    const file = normalize(join(root, rel));
     if (!file.startsWith(root)) {
       res.writeHead(403).end();
       return;

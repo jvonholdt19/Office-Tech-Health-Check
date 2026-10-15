@@ -1,0 +1,24 @@
+/* Technician tools dashboard and tool pages. Uses the variables from styles.css. */
+
+.dashboard { padding: 40px 0 64px; }
+.dashboard h1 { font-size: 32px; }
+.tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-top: 24px; }
+.tool-card {
+  display: block; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 18px 20px; color: var(--text); text-decoration: none; box-shadow: var(--shadow);
+}
+a.tool-card:hover { border-color: var(--accent); }
+a.tool-card:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+.tool-card h2 { margin: 0; font-size: 17px; }
+.tool-card p { margin: 6px 0 0; color: var(--muted); font-size: 15px; }
+.tool-card.disabled { opacity: 0.6; box-shadow: none; background: var(--surface-2); cursor: default; }
+.tool-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.soon-tag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--info); background: var(--info-bg); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+
+.tool-page { padding: 32px 0 64px; }
+.tool-page h1 { font-size: 30px; }
+.back-link { display: inline-block; margin-bottom: 12px; color: var(--accent); text-decoration: none; font-weight: 600; font-size: 15px; }
+.back-link:hover { text-decoration: underline; }
+.redirect-path { margin: 16px 0 0; color: var(--muted); font-size: 14px; word-break: break-all; }
+.redirect-path code { font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.website-report { margin-top: 28px; }
