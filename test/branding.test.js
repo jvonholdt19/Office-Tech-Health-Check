@@ -112,7 +112,7 @@ test("tool pages and /plan: a Tools menu with All tools, then every live tool gr
     assert.deepEqual(headings.map((m) => m[2]), menuGroups().map((g) => g.category), `${f}: category headings`);
     for (const m of headings) assert.equal(m[1], m[3], `${f}: each list is labelled by its heading`);
     const page = PAGES[f];
-    const currentLinks = [...headerOf(f).matchAll(/<a href="([^"]+)" aria-current="page">/g)].map((m) => m[1]);
+    const currentLinks = [...headerOf(f).matchAll(/<a href="([^"]+)" aria-current="page"( hidden)?>/g)].map((m) => m[1]);
     assert.deepEqual(currentLinks, [page.kind === "plan" ? "/plan" : page.current], `${f}: exactly one current item`);
   }
   // Every live tool has its own page, registered as a tool page for its href (so it gets the menu with itself marked).

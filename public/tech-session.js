@@ -49,6 +49,33 @@ export function showSignedInChrome(on) {
     const el = $(id);
     if (el) el.hidden = !show;
   }
+  applyFeatures();
+}
+
+// Feature switches (lib/features.js) as reported by GET/POST /api/session for a signed-in technician.
+// Unknown or missing means off: gated tools stay "Coming soon" and their pages say "not available yet".
+let features = {};
+
+/** Keep the switches from a /api/session answer (booleans only). */
+export function rememberFeatures(value) {
+  features = value && typeof value === "object" ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, v === true])) : {};
+}
+
+/** True only when the server said this switch is on. The server enforces it either way. */
+export function featureEnabled(name) {
+  return features[name] === true;
+}
+
+/** In the Tools menu, swap "Coming soon" for the link on tools whose switch is on (markup in scripts/site-chrome.js). */
+export function applyFeatures(doc = typeof document === "undefined" ? null : document) {
+  if (!doc || typeof doc.querySelectorAll !== "function") return;
+  for (const item of doc.querySelectorAll("[data-feature]")) {
+    const on = featureEnabled(item.dataset.feature);
+    const link = item.querySelector("a");
+    const soon = item.querySelector(".tools-menu-soon");
+    if (link) link.hidden = !on;
+    if (soon) soon.hidden = on;
+  }
 }
 
 /**
@@ -99,7 +126,10 @@ export function checkSession({ show, onError = () => {}, apiFn = api, timeoutMs 
   const timer = setTimeout(() => settle(false, "Checking your sign-in is taking a while. Sign in below, or reload the page."), timeoutMs);
   return Promise.resolve()
     .then(() => apiFn("/api/session"))
-    .then(({ res, body }) => settle(Boolean(body?.authenticated), !body?.authenticated && !res.ok && body?.error ? body.error : ""))
+    .then(({ res, body }) => {
+      if (body?.authenticated) rememberFeatures(body.features);
+      settle(Boolean(body?.authenticated), !body?.authenticated && !res.ok && body?.error ? body.error : "");
+    })
     .catch(() => settle(false, "Couldn't reach the server."))
     .finally(() => clearTimeout(timer));
 }
@@ -131,6 +161,7 @@ export function initGate({ contentId, onSignedIn = () => {}, onSignedOut = () =>
     try {
       const { res, body } = await api("/api/session", { method: "POST", body: { code } });
       if (!res.ok) return showError("gate-error", body.error || "Couldn't sign in.");
+      rememberFeatures(body.features);
     } catch {
       return showError("gate-error", "Couldn't reach the server.");
     }

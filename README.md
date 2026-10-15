@@ -59,7 +59,7 @@ Import the GitHub repo into Vercel with the Framework Preset set to **Other**. N
 
 ## Technician tools (private, /tools)
 
-`/tools` is a dashboard of technician tools behind the same sign-in as `/plan`. The cards come from the `TOOLS` registry in `public/tools.js` (`{ id, category, icon, name, blurb, href, status: "live" | "soon" }`), the one list of tools: the dashboard cards (`public/dashboard.js`) and the header's Tools menu on every tool page are both built from it. To add or move a tool, edit the registry, give a new tool its page under `public/tools/` and an entry in `PAGES` in `scripts/site-chrome.js`, then run `node scripts/sync-chrome.js`; `test/branding.test.js` fails until every live tool is in the menu on every page. Live today: the Email Security Check (`/tools/email`), Domain Health (`/tools/domain`) and the Website Security Check (`/tools/website`).
+`/tools` is a dashboard of technician tools behind the same sign-in as `/plan`. The cards come from the `TOOLS` registry in `public/tools.js` (`{ id, category, icon, name, blurb, href, status: "live" | "soon", feature? }`; `feature` names a switch from `lib/features.js`, e.g. Breach Check), the one list of tools: the dashboard cards (`public/dashboard.js`) and the header's Tools menu on every tool page are both built from it. To add or move a tool, edit the registry, give a new tool its page under `public/tools/` and an entry in `PAGES` in `scripts/site-chrome.js`, then run `node scripts/sync-chrome.js`; `test/branding.test.js` fails until every live tool is in the menu on every page. Live today: the Email Security Check (`/tools/email`), Domain Health (`/tools/domain`) and the Website Security Check (`/tools/website`).
 
 **Website Security Check** makes plain GETs to the homepage over HTTPS and HTTP and follows up to 5 redirects by hand. Every hop is re-resolved and vetted (private, loopback, link-local and metadata addresses are refused) and limited to http(s), default ports, no IP literals and the exact host entered plus its `www.` variant (`example.com` ↔ `www.example.com`). A redirect anywhere else, other subdomains included, is reported as an off-site redirect and not followed. `/tools/website?t=example.com` only pre-fills the field; a scan runs only when the technician presses **Check website**. It never probes other paths or sends payloads.
 
@@ -126,6 +126,25 @@ Passive only: DNS lookups, the registry's RDAP record, and SOA/DNSKEY questions 
 
 Caps: expired, redemption period or pending delete → F; a nameserver that doesn't resolve → at most D. The email scanner's own registration check keeps its 30/90-day thresholds. Every warning or failure carries a guide for registrars (GoDaddy, Namecheap, Cloudflare Registrar) and DNS hosts (Cloudflare, Microsoft 365, Google Workspace), using only steps confirmed on each vendor's own help pages. `domain_scan` is audited like `website_scan`, and each domain can be checked at most 3 times a minute.
 
+## Breach Check (private, /tools/breach): built, switched off
+
+Breach Check is deployed but **off** until `BREACH_CHECK_ENABLED` is set to exactly `true` (any other value, or no value, means off). While it's off:
+- the dashboard card and the Tools menu entry say **Coming soon**;
+- `/tools/breach` says "Not available yet";
+- `/api/breach` answers **404** to everyone, before the session check, without contacting any outside service or touching a rate-limit counter.
+
+The switch is read on every request, so turning it on or off in Vercel only needs a redeploy (environment variables apply to new deployments). Pages learn the state from `GET /api/session` (`features.breachCheck`, booleans only, signed-in technicians only), and the server enforces it either way.
+
+When it's on, a signed-in technician can:
+1. **Check a domain** (`GET /api/breach?domain=`) against [XposedOrNot](https://xposedornot.com/)'s free domain monitoring. The client's domain must first be verified in the XposedOrNot CxO Dashboard, and that account's API key added to `XON_DOMAIN_KEYS`. The server sends the key only to `api.xposedornot.com` in the `x-api-key` header (`POST /v1/domain-breaches/`); it never reaches the browser. One key covers every domain verified on that XposedOrNot account, so the answer is filtered to the domain asked for. The report shows, per breached address, the breach name, year and kinds of data exposed, plus what to do (reset the password, turn on 2-step sign-in, watch for phishing). Passwords, descriptions and raw records are never passed on. No key, or XposedOrNot doesn't recognise the domain for that key: "Verify this domain in XposedOrNot first", with the steps.
+2. **Check a password** with [Have I Been Pwned](https://haveibeenpwned.com/Passwords)'s Pwned Passwords range API (k-anonymity). The browser hashes the password with SHA-1 (Web Crypto) and sends only the first 5 hex characters to `GET /api/breach?range=`, which forwards that prefix (with `Add-Padding: true`) to `api.pwnedpasswords.com` and returns the matching suffixes; the browser looks its suffix up locally. The password and the full hash never leave the page. No CSP change was needed: the browser only talks to this site.
+
+Rules: a consent notice on the page ("Only check domains you manage for a client who has given written permission. Never use results to contact or sell to breach victims."), attribution links to both sources, nothing stored. The audit log gets `breach_check` with the domain, the number of breached addresses and the time only (no session, IP or addresses); password checks aren't logged. Outbound calls use `fetchApi` in `lib/net.js`: https only, exact allowlist (`api.xposedornot.com`, `api.pwnedpasswords.com`), the host resolved and vetted on every call and the connection pinned to that IP, the certificate verified, no redirects, capped bodies.
+
+Limits: per session as for every private API, plus at most 3 checks of one domain a minute and 20 domain checks an hour / 45 a day across everyone (XposedOrNot's free tier allows 25 an hour and 50 a day per IP).
+
+To turn it on: set `XON_DOMAIN_KEYS` (and verify each client domain in XposedOrNot), set `BREACH_CHECK_ENABLED=true`, redeploy.
+
 ## Fix Plan Builder (private)
 
 `/plan` turns a scan into **two documents**: a client-facing fix plan (plain English, phases, prices, package total, timeline, what access is needed) and a **technician checklist** (exact DNS records with copy buttons, click paths for the client's DNS host, provider-specific DKIM steps, verification and follow-ups).
@@ -170,6 +189,8 @@ Set these in Vercel → Project → Settings → Environment Variables (server-s
 | `SESSION_SECRET` | Random string of at least 32 characters used to sign session cookies, e.g. `openssl rand -base64 48`. Changing it signs everyone out. |
 | `SUPABASE_URL` | Your Supabase project URL (`https://<project>.supabase.co`). |
 | `SUPABASE_SERVICE_ROLE_KEY` | The project's service-role (secret) key. Used only by the serverless functions. |
+| `BREACH_CHECK_ENABLED` | Optional. `true` turns Breach Check on; anything else (or unset) leaves it off. |
+| `XON_DOMAIN_KEYS` | Optional, for Breach Check. JSON map of client domain → XposedOrNot API key, e.g. `{"example.com":"<key>"}`. Server-side only; a domain without a key shows "Verify this domain in XposedOrNot first". |
 
 The technician endpoints **fail closed** (503) until `SESSION_SECRET` (32+ characters), an access code and both Supabase variables are set.
 
