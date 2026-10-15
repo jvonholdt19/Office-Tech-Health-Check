@@ -81,6 +81,8 @@ Grades: A ≥ 90, B ≥ 80, C ≥ 70, D ≥ 60, otherwise F (the same scale as t
 
 The report lists the caps that applied in `data.cappedBy` (with `data.uncappedGrade`), and the page shows "Grade capped at … because …". `security.txt` and other paths are deliberately not fetched (that would be path probing).
 
+**How to fix guides.** Every warning or failure in the report carries a guide (`check.guide`, attached server-side from `lib/fix-guides.js`; passing checks carry none). A guide gives a plain-English "why it matters", difficulty and time, a risk box where a change can break things (HSTS, CSP, framing, cookies, TLS, WordPress updates), steps per platform (Cloudflare, WordPress, Apache, Nginx, IIS, and website builders, with an honest "possible / partly / usually not possible"), copyable snippets, a ready-to-send message for the web host or developer, how to verify, and the official sources each step was checked against. The "Platform for this client" picker shows (and prints) only that platform. **Save as PDF** expands every guide for printing.
+
 ## Fix Plan Builder (private)
 
 `/plan` turns a scan into **two documents**: a client-facing fix plan (plain English, phases, prices, package total, timeline, what access is needed) and a **technician checklist** (exact DNS records with copy buttons, click paths for the client's DNS host, provider-specific DKIM steps, verification and follow-ups).
