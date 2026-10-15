@@ -72,6 +72,38 @@ export function initToolsMenu(doc = document) {
 
 if (typeof document !== "undefined") initToolsMenu(document);
 
+/** How long to wait for GET /api/session before showing the sign-in form anyway. */
+export const SESSION_CHECK_TIMEOUT_MS = 8000;
+
+/**
+ * Technician pages load in a neutral "checking your sign-in" state: #session-check is shown, and
+ * the sign-in form, the page content, the nav and "Back to home" all start hidden. This asks
+ * GET /api/session once, hides #session-check and calls show(true) (signed in) or show(false)
+ * (show the sign-in form), so a signed-in technician never sees the form flash on the way to a tool.
+ * If the server doesn't answer within timeoutMs the form is shown with a note; a "signed in"
+ * answer that arrives later still unlocks the page.
+ */
+export function checkSession({ show, onError = () => {}, apiFn = api, timeoutMs = SESSION_CHECK_TIMEOUT_MS }) {
+  let settled = false;
+  const settle = (on, error) => {
+    if (settled) {
+      if (on) show(true);
+      return;
+    }
+    settled = true;
+    const panel = $("session-check");
+    if (panel) panel.hidden = true;
+    show(on);
+    if (error) onError(error);
+  };
+  const timer = setTimeout(() => settle(false, "Checking your sign-in is taking a while. Sign in below, or reload the page."), timeoutMs);
+  return Promise.resolve()
+    .then(() => apiFn("/api/session"))
+    .then(({ res, body }) => settle(Boolean(body?.authenticated), !body?.authenticated && !res.ok && body?.error ? body.error : ""))
+    .catch(() => settle(false, "Couldn't reach the server."))
+    .finally(() => clearTimeout(timer));
+}
+
 /**
  * Wire up the sign-in gate. The page provides #gate, #gate-form, #access-code, #gate-error,
  * #lock-btn and a content element (`contentId`) that is shown only while signed in.
@@ -110,10 +142,5 @@ export function initGate({ contentId, onSignedIn = () => {}, onSignedOut = () =>
     unlock(false);
   });
 
-  api("/api/session")
-    .then(({ res, body }) => {
-      if (body.authenticated) unlock(true);
-      else if (!res.ok && body.error) showError("gate-error", body.error);
-    })
-    .catch(() => {});
+  return checkSession({ show: unlock, onError: (msg) => showError("gate-error", msg) });
 }

@@ -23,7 +23,7 @@
           <span class="brand-sub">Powered by NWIM Project Management</span>
         </span>
       </a>
-      <a class="header-home" id="gate-home" href="/">Back to home</a>
+      <a class="header-home" id="gate-home" href="/" hidden>Back to home</a>
       <nav class="tech-nav" id="tech-nav" aria-label="Technician" hidden>
         <details class="tools-menu">
           <summary>Tools</summary>
@@ -50,7 +50,14 @@
   </header>
 
   <main id="main" class="wrap">
-    <section class="gate" id="gate" aria-labelledby="gate-title">
+    <!-- Shown until GET /api/session answers, so neither the sign-in form nor the tool flashes. -->
+    <section class="session-check" id="session-check" role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      <span class="sr-only">Checking your sign-in…</span>
+      <noscript><p class="session-check-note">The technician tools need JavaScript.</p></noscript>
+    </section>
+
+    <section class="gate" id="gate" aria-labelledby="gate-title" hidden>
       <div class="gate-card">
         <svg class="gate-logo" width="48" height="48" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#logo"/></svg>
         <h1 id="gate-title">Technician sign in</h1>

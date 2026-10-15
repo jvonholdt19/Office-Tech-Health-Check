@@ -64,9 +64,11 @@ export function header({ kind, current: currentHref }) {
   const tech = kind !== "lander";
   const right = tech
     ? [
-        // Signed out (the sign-in gate): a way back to the public page. Hidden by tech-session.js once signed in.
-        `<a class="header-home" id="gate-home" href="/">Back to home</a>`,
-        // Signed in: the nav and Sign out. Hidden until the gate unlocks.
+        // Both start hidden: until the session check answers the header shows neither, so it never flips
+        // between them (tech-session.js shows exactly one).
+        // Signed out (the sign-in gate): a way back to the public page.
+        `<a class="header-home" id="gate-home" href="/" hidden>Back to home</a>`,
+        // Signed in: the nav and Sign out.
         `<nav class="tech-nav" id="tech-nav" aria-label="Technician" hidden>`,
         ...(kind === "dashboard" ? [] : toolsMenu(currentHref).map((l) => `  ${l}`)),
         `  <a href="/plan"${current(kind === "plan")}>Fix Plan</a>`,
