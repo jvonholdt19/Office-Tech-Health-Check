@@ -80,7 +80,7 @@ export function header({ kind, current: currentHref }) {
     `<header class="site-header${tech ? " no-print" : ""}">`,
     `  <div class="wrap header-inner">`,
     `    <a class="brand" href="${tech ? "/tools" : "/"}">`,
-    `      <svg class="brand-mark" width="32" height="32" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#logo"/></svg>`,
+    `      <svg class="brand-mark" width="32" height="32" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#shield-logo"/></svg>`,
     `      <span class="brand-text">`,
     `        <span class="brand-name">Office Tech Health Check</span>`,
     `        <span class="brand-sub">Powered by NWIM Project Management</span>`,
