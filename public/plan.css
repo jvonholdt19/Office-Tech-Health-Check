@@ -1,5 +1,11 @@
 /* Fix Plan Builder, plus the sign-in gate shared by every technician page. Uses the tokens from brand.css. */
 
+/* Before GET /api/session answers: a neutral panel instead of the sign-in form or the tool, so
+   neither flashes. The spinner only fades in after 0.4s, so a quick check shows just the navy page. */
+.session-check { display: grid; place-items: center; align-content: center; gap: 12px; min-height: 40vh; padding: 48px 16px; animation: session-check-in 0.2s ease 0.4s both; }
+.session-check-note { margin: 0; color: var(--muted); }
+@keyframes session-check-in { from { opacity: 0; } to { opacity: 1; } }
+
 /* Sign-in gate: a centred card on the navy page */
 .gate { display: grid; place-items: center; padding: clamp(32px, 8vh, 88px) 0; }
 .gate-card {

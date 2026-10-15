@@ -1,7 +1,7 @@
 // Fix Plan Builder (private). Renders /api/plan output as a client proposal and a
 // technician checklist. All text is inserted with textContent, never innerHTML, because
 // DNS records come from the prospect's domain and must be treated as untrusted.
-import { showSignedInChrome } from "./tech-session.js";
+import { showSignedInChrome, checkSession } from "./tech-session.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -726,11 +726,14 @@ for (const tab of document.querySelectorAll(".tab")) {
 
 $("print-btn").addEventListener("click", () => window.print());
 
-api("/api/session")
-  .then(({ body }) => {
-    if (!body.authenticated) return;
-    unlockUI(true);
+// The page loads in the neutral "checking your sign-in" state (see checkSession in tech-session.js).
+checkSession({
+  apiFn: api,
+  onError: (msg) => showError("gate-error", msg),
+  show: (on) => {
+    unlockUI(on);
+    if (!on) return;
     const d = new URLSearchParams(location.search).get("d");
     if (d) buildPlan(d);
-  })
-  .catch(() => {});
+  },
+});

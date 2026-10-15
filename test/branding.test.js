@@ -58,12 +58,12 @@ test("every page carries the canonical header and footer (only the page kind and
   }
 });
 
-test("technician pages: the nav (with #lock-btn) starts hidden and 'Back to home' shows on the gate", () => {
+test("technician pages: the nav (with #lock-btn) and 'Back to home' both start hidden until the session check answers", () => {
   for (const f of TECH) {
     const html = read(f);
     assert.match(html, /<nav class="tech-nav" id="tech-nav" aria-label="Technician" hidden>/, f);
     assert.match(html, /<button type="button" class="nav-signout" id="lock-btn" hidden>Sign out<\/button>/, f);
-    assert.match(html, /<a class="header-home" id="gate-home" href="\/">Back to home<\/a>/, f);
+    assert.match(html, /<a class="header-home" id="gate-home" href="\/" hidden>Back to home<\/a>/, f);
     assert.match(headerOf(f), /<a href="\/plan"( aria-current="page")?>Fix Plan<\/a>\n\s+<button type="button" class="nav-signout"/, `${f}: Fix Plan, then Sign out`);
     assert.ok(!html.includes("Tech sign in"), `${f}: never "Tech sign in" on the gate`);
     assert.ok(!/header-links|header-link|back-link|← All tools/.test(html), `${f}: old header links are gone`);
@@ -157,6 +157,79 @@ test("Tools menu: Escape closes it and returns focus to Tools; a click or focus 
   listeners.focusin({ target: {} });
   assert.equal(menu.open, false, "tabbing out closes it");
   initToolsMenu({ getElementById: () => null }); // pages without the menu (and fake DOMs) are fine
+});
+
+test("no sign-in flash: technician pages load in a neutral 'checking your sign-in' state", () => {
+  const CONTENT = { dashboard: "dashboard", tool: "tool", plan: "builder" };
+  for (const f of TECH) {
+    const html = read(f);
+    const main = html.slice(html.indexOf("<main"), html.indexOf("</main>"));
+    // The neutral panel is the first thing in <main> and starts visible, announced politely.
+    assert.match(main, /^<main id="main"[^>]*>\n\s+<!--[^>]*-->\n\s+<section class="session-check" id="session-check" role="status" aria-live="polite">/, `${f}: #session-check first in <main>`);
+    assert.ok(!/id="session-check"[^>]*\bhidden\b/.test(html), `${f}: #session-check starts visible`);
+    assert.match(main, /<span class="sr-only">Checking your sign-in…<\/span>/, f);
+    assert.match(main, /<noscript><p class="session-check-note">The technician tools need JavaScript\.<\/p><\/noscript>/, f);
+    // Neither the sign-in form nor the page content is visible before the check answers.
+    assert.match(html, /<section class="gate[^"]*" id="gate" aria-labelledby="gate-title" hidden>/, `${f}: the sign-in form starts hidden`);
+    const content = CONTENT[PAGES[f].kind];
+    assert.match(html, new RegExp(`id="${content}"[^>]*\\bhidden\\b`), `${f}: #${content} starts hidden`);
+  }
+  assert.match(read("public/plan.css"), /\.session-check \{/);
+  // Both gate scripts use the shared check; nothing calls GET /api/session on its own any more.
+  assert.match(read("public/tech-session.js"), /return checkSession\(\{ show: unlock,/);
+  assert.match(read("public/plan.js"), /\ncheckSession\(\{\n\s+apiFn: api,/);
+  for (const f of PAGE_JS) assert.ok(!/api\("\/api\/session"\)\s*\n?\s*\.then/.test(read(f)), `${f}: no direct session check`);
+});
+
+async function sessionCheckHarness() {
+  const els = { "session-check": { hidden: false } };
+  globalThis.document = { getElementById: (id) => els[id] || null };
+  const mod = await import(`../public/tech-session.js?check=${Date.now()}${Math.random()}`);
+  const calls = [];
+  const errors = [];
+  return { els, calls, errors, run: (apiFn, timeoutMs = 1000) => mod.checkSession({ apiFn, timeoutMs, show: (on) => calls.push(on), onError: (m) => errors.push(m) }) };
+}
+const reply = (body, status = 200) => async () => ({ res: { ok: status < 400, status }, body });
+
+test("checkSession: signed in shows the page only; the sign-in form is never shown on the way", async () => {
+  const h = await sessionCheckHarness();
+  let resolve;
+  const pending = h.run(() => new Promise((r) => (resolve = r)));
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(h.calls, [], "nothing is shown while the check is in flight");
+  assert.equal(h.els["session-check"].hidden, false, "the neutral panel stays up meanwhile");
+  resolve({ res: { ok: true, status: 200 }, body: { authenticated: true } });
+  await pending;
+  assert.deepEqual(h.calls, [true], "show(true) once, never show(false)");
+  assert.equal(h.els["session-check"].hidden, true);
+  assert.deepEqual(h.errors, []);
+});
+
+test("checkSession: signed out, server errors, network failures and timeouts show the sign-in form", async () => {
+  let h = await sessionCheckHarness();
+  await h.run(reply({ authenticated: false }));
+  assert.deepEqual([h.calls, h.errors, h.els["session-check"].hidden], [[false], [], true]);
+
+  h = await sessionCheckHarness();
+  await h.run(reply({ error: "Technician tools are locked." }, 503));
+  assert.deepEqual([h.calls, h.errors], [[false], ["Technician tools are locked."]]);
+
+  h = await sessionCheckHarness();
+  await h.run(async () => {
+    throw new Error("offline");
+  });
+  assert.deepEqual([h.calls, h.errors], [[false], ["Couldn't reach the server."]]);
+
+  // No answer in time: show the form with a note; a late "signed in" still unlocks the page.
+  h = await sessionCheckHarness();
+  let resolve;
+  const pending = h.run(() => new Promise((r) => (resolve = r)), 20);
+  await new Promise((r) => setTimeout(r, 40));
+  assert.deepEqual(h.calls, [false]);
+  assert.match(h.errors[0], /taking a while/);
+  resolve({ res: { ok: true, status: 200 }, body: { authenticated: true } });
+  await pending;
+  assert.deepEqual(h.calls, [false, true]);
 });
 
 test("signing in shows the nav and hides 'Back to home'; signing out reverses it (tech-session.js)", async () => {
