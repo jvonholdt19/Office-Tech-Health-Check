@@ -21,6 +21,9 @@
     "api/website.js": {
       "maxDuration": 30
     },
+    "api/breach.js": {
+      "maxDuration": 20
+    },
     "api/preview.js": {
       "maxDuration": 30
     },
