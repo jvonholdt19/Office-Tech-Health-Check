@@ -268,7 +268,7 @@ test("the icon sprite is well-formed, script-free, and has every symbol the page
   const used = new Set();
   for (const f of HTML) for (const m of read(f).matchAll(/icons\.svg#([\w-]+)/g)) used.add(m[1]);
   for (const m of read("public/tools.js").matchAll(/icon: "([\w-]+)"/g)) used.add(m[1]);
-  for (const id of ["logo", "mail", "globe-lock", "domain"]) assert.ok(used.has(id), id);
+  for (const id of ["shield-logo", "mail", "globe-lock", "domain"]) assert.ok(used.has(id), id);
   for (const id of used) assert.match(svg, new RegExp(`<symbol id="${id}"`), `symbol ${id}`);
 });
 
@@ -376,4 +376,31 @@ test("examples, tests and docs use reserved example domains, not real-looking bu
     const m = read(f).match(business);
     assert.ok(!m, `${f}: "${m && m[0]}" (use example.com, example.net or example.org)`);
   }
+});
+
+/* --------------------------------- logo --------------------------------- */
+
+test("logo: the shield replaces the old checkmark in the header, the sign-in card and the favicon", () => {
+  const svg = read("public/assets/icons.svg");
+  const symbol = svg.match(/<symbol id="shield-logo" viewBox="4 2 24 28">([\s\S]*?)<\/symbol>/)?.[1];
+  assert.ok(symbol, "#shield-logo symbol");
+  assert.ok(!/<symbol id="logo"/.test(svg), "the old #logo symbol is gone");
+  const shapes = (text) => [...text.matchAll(/<path d="([^"]+)"/g)].map((m) => m[1]);
+  const favicon = read("public/favicon.svg");
+  assert.deepEqual(shapes(favicon), shapes(symbol), "the favicon draws the same shield as the sprite");
+  assert.match(favicon, /viewBox="4 2 24 28"/, "same tight viewBox as the sprite, so the shield fills the icon");
+  assert.ok(!/<script|\son[a-z]+\s*=|\sstyle\s*=|href\s*=/i.test(favicon), "the favicon is a plain, self-contained SVG");
+  assert.match(favicon, /fill="#4c8dff"/, "brand blue (--accent)");
+  assert.match(favicon, /stroke="#0b1324"/, "navy detail (--accent-ink)");
+  for (const f of HTML) {
+    const html = read(f);
+    assert.match(html, /<link rel="icon" href="\/favicon\.svg" type="image\/svg\+xml">/, `${f}: favicon`);
+    assert.ok(!/data:image\/svg/.test(html), `${f}: no inline data-URI favicon`);
+    assert.ok(!/icons\.svg#logo"/.test(html), `${f}: no reference to the old mark`);
+    assert.match(headerOf(f), /<svg class="brand-mark" width="32" height="32" aria-hidden="true" focusable="false"><use href="\/assets\/icons\.svg#shield-logo"\/><\/svg>/, `${f}: header shield`);
+    assert.match(headerOf(f), /<span class="brand-name">Office Tech Health Check<\/span>\n\s+<span class="brand-sub">Powered by NWIM Project Management<\/span>/, `${f}: wordmark unchanged`);
+  }
+  for (const f of TECH) assert.match(read(f), /<svg class="gate-logo" width="48" height="48" aria-hidden="true" focusable="false"><use href="\/assets\/icons\.svg#shield-logo"\/><\/svg>/, `${f}: sign-in card shield`);
+  // The old checkmark path appears nowhere.
+  for (const f of [...HTML, ...PAGE_JS, "public/assets/icons.svg", "public/favicon.svg", "scripts/site-chrome.js"]) assert.ok(!read(f).includes("M9 16.5l4.5 4.5L23 11.5"), `${f}: no checkmark`);
 });
