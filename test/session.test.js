@@ -12,7 +12,7 @@ import { encodeSession, newSession, decodeSession, SESSION_SECONDS } from "../li
 
 const SECRET = "test-session-secret-0123456789-abcdefgh";
 const CODE = "tech-code-for-tests-7f3a";
-const HOST = "office-tech-health-check.vercel.app";
+const HOST = "officetech.nwimpm.com";
 let saved;
 let store;
 let events;
