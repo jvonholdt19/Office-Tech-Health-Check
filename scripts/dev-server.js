@@ -10,6 +10,7 @@ import sessionHandler from "../api/session.js";
 import confirmHandler from "../api/plan-confirm.js";
 import websiteHandler from "../api/website.js";
 import previewHandler from "../api/preview.js";
+import domainHandler from "../api/domain.js";
 import { setStoreForTests, memoryStore } from "../lib/store.js";
 
 // Local preview only: without Supabase credentials, keep rate limits and the audit log in memory so
@@ -32,6 +33,7 @@ http
       return;
     }
     if (pathname === "/api/preview") return previewHandler(req, res);
+    if (pathname === "/api/domain") return domainHandler(req, res);
     if (pathname === "/api/scan") return handler(req, res);
     if (pathname === "/api/plan") return planHandler(req, res);
     if (pathname === "/api/verify") return verifyHandler(req, res);

@@ -23,6 +23,9 @@
     },
     "api/preview.js": {
       "maxDuration": 30
+    },
+    "api/domain.js": {
+      "maxDuration": 30
     }
   },
   "headers": [
