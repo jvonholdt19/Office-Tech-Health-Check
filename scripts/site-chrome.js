@@ -20,6 +20,7 @@ export const PAGES = {
   "public/tools/email.html": { kind: "tool", current: "/tools/email" },
   "public/tools/website.html": { kind: "tool", current: "/tools/website" },
   "public/tools/domain.html": { kind: "tool", current: "/tools/domain" },
+  "public/tools/breach.html": { kind: "tool", current: "/tools/breach" },
   "public/plan.html": { kind: "plan" },
 };
 
@@ -44,7 +45,13 @@ export function toolsMenu(currentHref) {
     return [
       `    <p class="tools-menu-heading" id="${id}">${category}</p>`,
       `    <ul aria-labelledby="${id}">`,
-      ...tools.map((t) => `      <li><a href="${t.href}"${current(t.href === currentHref)}>${t.name}</a></li>`),
+      ...tools.map((t) =>
+        t.feature
+          ? // Behind a feature switch: "Coming soon" until GET /api/session says the switch is on
+            // (tech-session.js then swaps the label for the link). Without JS it stays "Coming soon".
+            `      <li data-feature="${t.feature}"><a href="${t.href}"${current(t.href === currentHref)} hidden>${t.name}</a><span class="tools-menu-soon">${t.name} <span class="soon-tag">Coming soon</span></span></li>`
+          : `      <li><a href="${t.href}"${current(t.href === currentHref)}>${t.name}</a></li>`,
+      ),
       `    </ul>`,
     ];
   });

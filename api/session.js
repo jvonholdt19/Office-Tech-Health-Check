@@ -1,11 +1,12 @@
 // Technician sign-in.
-//   GET    /api/session          → { authenticated, expiresAt }
+//   GET    /api/session          → { authenticated, expiresAt, features? } (features only when signed in)
 //   POST   /api/session { code } → sets the ohc_tech session cookie (8 hours)
 //   DELETE /api/session          → signs out
 // The code is compared on the server only, against TECH_ACCESS_CODE (or PLAN_PASSCODE during migration).
 import { send, readJson, retryAfter } from "../lib/private-api.js";
 import { getStore } from "../lib/store.js";
 import { audit, requestContext } from "../lib/audit.js";
+import { features } from "../lib/features.js";
 import { sessionSecret, accessCode, codeMatches, newSession, encodeSession, setCookieHeader, clearCookieHeader, sessionFromRequest, originAllowed } from "../lib/session.js";
 
 // Failed sign-ins: 5 per IP per 15 minutes, and 20 across all IPs per hour.
@@ -18,7 +19,7 @@ export default async function handler(req, res) {
 
   if (req.method === "GET") {
     const s = sessionFromRequest(req, secret);
-    return send(res, 200, { authenticated: Boolean(s), expiresAt: s ? new Date(s.exp * 1000).toISOString() : null });
+    return send(res, 200, { authenticated: Boolean(s), expiresAt: s ? new Date(s.exp * 1000).toISOString() : null, ...(s ? { features: features() } : {}) });
   }
 
   const store = getStore();
@@ -69,5 +70,5 @@ export default async function handler(req, res) {
 
   const session = newSession();
   await audit("login_success", { sid: session.sid, ip: ctx.ip, ua: ctx.ua }, store);
-  return send(res, 200, { authenticated: true, expiresAt: new Date(session.exp * 1000).toISOString() }, { "Set-Cookie": setCookieHeader(encodeSession(session, secret)) });
+  return send(res, 200, { authenticated: true, expiresAt: new Date(session.exp * 1000).toISOString(), features: features() }, { "Set-Cookie": setCookieHeader(encodeSession(session, secret)) });
 }

@@ -1,6 +1,6 @@
 // Technician tools dashboard (/tools): one card per tool in the registry (tools.js).
 // Every tool lives under /tools behind the technician sign-in; the public lander is at /.
-import { $, h, initGate } from "./tech-session.js";
+import { $, h, initGate, featureEnabled } from "./tech-session.js";
 import { TOOLS } from "./tools.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -16,7 +16,8 @@ function icon(id) {
 }
 
 function card(tool) {
-  const live = tool.status === "live" && tool.href;
+  // A tool behind a feature switch (tools.js `feature`) is a "Coming soon" card until the switch is on.
+  const live = tool.status === "live" && tool.href && (!tool.feature || featureEnabled(tool.feature));
   const body = [
     tool.icon ? icon(tool.icon) : null,
     h("div", { class: "tool-card-head" }, h("h2", {}, tool.name), live ? null : h("span", { class: "soon-tag" }, "Coming soon")),

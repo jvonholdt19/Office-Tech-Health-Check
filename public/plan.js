@@ -1,7 +1,7 @@
 // Fix Plan Builder (private). Renders /api/plan output as a client proposal and a
 // technician checklist. All text is inserted with textContent, never innerHTML, because
 // DNS records come from the prospect's domain and must be treated as untrusted.
-import { showSignedInChrome, checkSession } from "./tech-session.js";
+import { showSignedInChrome, checkSession, rememberFeatures } from "./tech-session.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -692,6 +692,7 @@ $("gate-form").addEventListener("submit", async (e) => {
   try {
     const { res, body } = await api("/api/session", { method: "POST", body: { code } });
     if (!res.ok) return showError("gate-error", body.error || "Couldn't sign in.");
+    rememberFeatures(body.features);
   } catch {
     return showError("gate-error", "Couldn't reach the server.");
   }

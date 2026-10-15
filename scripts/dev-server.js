@@ -11,6 +11,7 @@ import confirmHandler from "../api/plan-confirm.js";
 import websiteHandler from "../api/website.js";
 import previewHandler from "../api/preview.js";
 import domainHandler from "../api/domain.js";
+import breachHandler from "../api/breach.js";
 import { oldLinkRedirect } from "../lib/redirects.js";
 import { setStoreForTests, memoryStore } from "../lib/store.js";
 
@@ -42,6 +43,7 @@ http
     if (pathname === "/api/session") return sessionHandler(req, res);
     if (pathname === "/api/plan/confirm") return confirmHandler(req, res);
     if (pathname === "/api/website") return websiteHandler(req, res);
+    if (pathname === "/api/breach") return breachHandler(req, res);
     // cleanUrls: /plan → plan.html, /tools → tools.html, /tools/website → tools/website.html
     const rel = pathname === "/" ? "index.html" : extname(pathname) ? pathname : `${pathname.replace(/\/+$/, "")}.html`;
     const file = normalize(join(root, rel));

@@ -80,3 +80,21 @@ a.tool-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3p
   .tool-page > h1, .tool-page > .lede { display: none; }
   a { color: inherit; text-decoration: none; }
 }
+
+/* Breach Check */
+.breach-part { margin-top: 32px; }
+.breach-part h2 { font-size: 22px; margin: 0 0 6px; }
+.breach-help { color: var(--muted); margin: 0 0 14px; max-width: 720px; }
+.consent { background: var(--warn-bg); color: var(--text); border-left: 4px solid var(--warn); border-radius: 8px; padding: 10px 14px; margin: 0 0 8px; max-width: 760px; }
+.breach-report { margin-top: 20px; }
+.breach-summary { font-size: 17px; margin: 0 0 14px; }
+.breach-list { margin: 8px 0 10px; padding-left: 20px; }
+.breach-list li { margin: 4px 0; overflow-wrap: anywhere; }
+.breach-address .check-title { overflow-wrap: anywhere; }
+.breach-todo-title { margin: 6px 0 2px; }
+.verify-first { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--info); border-radius: 12px; padding: 14px 18px; }
+.verify-first h3 { margin: 0 0 6px; font-size: 18px; }
+.password-result { margin: 14px 0 0; padding: 10px 14px; border-radius: 10px; font-weight: 600; background: var(--info-bg); }
+.password-result[data-status="fail"] { background: var(--fail-bg); color: var(--fail); }
+.password-result[data-status="pass"] { background: var(--pass-bg); color: var(--pass); }
+.attribution { color: var(--muted); font-size: 14px; margin: 14px 0 0; }

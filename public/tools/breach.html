@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="color-scheme" content="dark">
+  <title>Breach Check</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/brand.css">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/plan.css">
+  <link rel="stylesheet" href="/tools.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header no-print">
+    <div class="wrap header-inner">
+      <a class="brand" href="/tools">
+        <svg class="brand-mark" width="32" height="32" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#shield-logo"/></svg>
+        <span class="brand-text">
+          <span class="brand-name">Office Tech Health Check</span>
+          <span class="brand-sub">Powered by NWIM Project Management</span>
+        </span>
+      </a>
+      <a class="header-home" id="gate-home" href="/" hidden>Back to home</a>
+      <nav class="tech-nav" id="tech-nav" aria-label="Technician" hidden>
+        <details class="tools-menu">
+          <summary>Tools</summary>
+          <div class="tools-menu-panel">
+            <a class="tools-menu-all" href="/tools">All tools</a>
+            <p class="tools-menu-heading" id="tools-menu-email">Email</p>
+            <ul aria-labelledby="tools-menu-email">
+              <li><a href="/tools/email">Email Security Check</a></li>
+              <li data-feature="breachCheck"><a href="/tools/breach" aria-current="page" hidden>Breach Check</a><span class="tools-menu-soon">Breach Check <span class="soon-tag">Coming soon</span></span></li>
+            </ul>
+            <p class="tools-menu-heading" id="tools-menu-web">Web</p>
+            <ul aria-labelledby="tools-menu-web">
+              <li><a href="/tools/website">Website Security Check</a></li>
+            </ul>
+            <p class="tools-menu-heading" id="tools-menu-domain">Domain</p>
+            <ul aria-labelledby="tools-menu-domain">
+              <li><a href="/tools/domain">Domain Health</a></li>
+            </ul>
+          </div>
+        </details>
+        <a href="/plan">Fix Plan</a>
+        <button type="button" class="nav-signout" id="lock-btn" hidden>Sign out</button>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap">
+    <!-- Shown until GET /api/session answers, so neither the sign-in form nor the tool flashes. -->
+    <section class="session-check" id="session-check" role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      <span class="sr-only">Checking your sign-in…</span>
+      <noscript><p class="session-check-note">The technician tools need JavaScript.</p></noscript>
+    </section>
+
+    <section class="gate" id="gate" aria-labelledby="gate-title" hidden>
+      <div class="gate-card">
+        <svg class="gate-logo" width="48" height="48" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#shield-logo"/></svg>
+        <h1 id="gate-title">Technician sign in</h1>
+        <p class="gate-for">Sign in to use Breach Check.</p>
+        <form id="gate-form" class="gate-form" autocomplete="off">
+          <label for="access-code">Access code</label>
+          <input id="access-code" type="password" placeholder="Technician access code" autocomplete="current-password" required>
+          <button type="submit" class="btn-primary">Sign in</button>
+        </form>
+        <p class="form-error" id="gate-error" role="alert" hidden></p>
+      </div>
+    </section>
+
+    <section class="tool-page" id="tool" hidden>
+      <h1>Breach Check</h1>
+
+      <!-- Switched off (BREACH_CHECK_ENABLED isn't "true"): the default, until the session says otherwise. -->
+      <div class="breach-off" id="breach-off">
+        <p class="lede">Not available yet. Breach Check is built but switched off for now, so nothing here contacts any outside service. It will appear on the dashboard and in the Tools menu once it's turned on.</p>
+      </div>
+
+      <div id="breach-on" hidden>
+        <p class="lede">Which addresses on a client's domain appear in known data breaches, and whether a password has been seen in one. Nothing is stored.</p>
+        <p class="consent" role="note"><strong>Before you check:</strong> Only check domains you manage for a client who has given written permission. Never use results to contact or sell to breach victims.</p>
+
+        <section class="breach-part" aria-labelledby="domain-part-title">
+          <h2 id="domain-part-title">Domain breach check</h2>
+          <p class="breach-help">The domain must already be verified in the client's XposedOrNot dashboard, with its API key added on the server.</p>
+          <form id="breach-form" class="scan-form no-print">
+            <label for="breach-domain" class="sr-only">Client domain</label>
+            <input id="breach-domain" type="text" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="example.com" required>
+            <button type="submit" id="breach-btn">Check domain</button>
+          </form>
+          <p class="form-error" id="breach-error" role="alert" hidden></p>
+          <p class="loading-line no-print" id="breach-loading" hidden><span class="spinner small" aria-hidden="true"></span> Asking XposedOrNot…</p>
+          <div class="breach-report" id="breach-report" hidden></div>
+          <p class="attribution">Breach data from <a href="https://xposedornot.com/" rel="noopener noreferrer" target="_blank">XposedOrNot</a>.</p>
+        </section>
+
+        <section class="breach-part" aria-labelledby="password-part-title">
+          <h2 id="password-part-title">Password check</h2>
+          <p class="breach-help">The password is hashed (SHA-1) in this browser. Only the first 5 characters of the hash are sent, so the password itself never leaves this page.</p>
+          <form id="password-form" class="scan-form no-print" autocomplete="off">
+            <label for="password-input" class="sr-only">Password to check</label>
+            <input id="password-input" type="password" autocomplete="off" spellcheck="false" placeholder="Password to check" required>
+            <button type="submit" id="password-btn">Check password</button>
+          </form>
+          <p class="form-error" id="password-error" role="alert" hidden></p>
+          <p class="password-result" id="password-result" role="status" aria-live="polite" hidden></p>
+          <p class="attribution">Password data from <a href="https://haveibeenpwned.com/Passwords" rel="noopener noreferrer" target="_blank">Have I Been Pwned</a>.</p>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer no-print">
+    <div class="wrap">
+      <p class="footer-main">Office Tech Health Check · Powered by NWIM Project Management · <a href="tel:+15073604479">507-360-4479</a> · <a href="mailto:info@nwimpm.com">info@nwimpm.com</a></p>
+    </div>
+  </footer>
+
+  <script src="/breach.js" type="module"></script>
+</body>
+</html>
