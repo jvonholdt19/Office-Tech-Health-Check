@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Josh: keep the lander out of search results for now. -->
+  <meta name="robots" content="noindex, nofollow">
+  <title>Office Tech Health Check</title>
+  <meta name="description" content="IT and security health checks for small offices.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231f6feb'/><path d='M9 16.5l4.5 4.5L23 11.5' stroke='white' stroke-width='3.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/lander.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="/">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8"/><path d="M9 16.5l4.5 4.5L23 11.5"/></svg>
+        </span>
+        <span class="brand-text">
+          <span class="brand-name">Office Tech Health Check</span>
+          <span class="brand-sub">Powered by NWIM Project Management</span>
+        </span>
+      </a>
+      <a class="btn-ghost signin-btn" href="/tools">Tech sign in</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <h1>Office Tech Health Check</h1>
+        <p class="lede">IT and security health checks for small offices. We look at the public side of your technology, explain what we find in plain English, and help you fix what matters.</p>
+        <ul class="topics">
+          <li><strong>Email security</strong>: whether someone can send email that looks like it came from you (spoofing protection).</li>
+          <li><strong>Website security</strong>: HTTPS, certificates and the browser protections your site sends.</li>
+          <li><strong>Domain and DNS health</strong>: renewals, transfer locks, nameservers and mail records.</li>
+          <li><strong>Practical fix plans</strong>: clear, prioritised steps your web host or IT provider can follow.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="wrap preview" aria-labelledby="preview-title">
+      <h2 id="preview-title">Quick email security check (preview)</h2>
+      <p class="preview-note">A limited preview using public records only: SPF, DMARC and your website's HTTPS certificate. Nothing is installed and we never log in to anything.</p>
+      <form id="preview-form" class="scan-form" novalidate>
+        <label for="preview-domain" class="sr-only">Business domain</label>
+        <input id="preview-domain" type="text" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="yourbusiness.com" required>
+        <button type="submit" id="preview-btn">Check</button>
+      </form>
+      <p class="form-error" id="preview-error" role="alert" hidden></p>
+      <p class="loading-line" id="preview-loading" hidden><span class="spinner small" aria-hidden="true"></span> Checking public records…</p>
+
+      <div class="preview-result" id="preview-result" hidden>
+        <div class="preview-head">
+          <div class="grade" id="preview-grade" aria-label="Preview grade">–</div>
+          <div>
+            <p class="summary-domain" id="preview-for"></p>
+            <p class="preview-limited">Preview of 3 public checks only. The full check covers much more.</p>
+          </div>
+        </div>
+        <ul class="preview-items" id="preview-items"></ul>
+        <p class="preview-cta">Want the full check and a fix plan? Call NWIM Project Management at <a href="tel:+15073604479">507-360-4479</a> or email <a href="mailto:info@nwimpm.com">info@nwimpm.com</a>.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>Office Tech Health Check · NWIM Project Management · <a href="tel:+15073604479">507-360-4479</a> · <a href="mailto:info@nwimpm.com">info@nwimpm.com</a></p>
+    </div>
+  </footer>
+
+  <script src="/lander.js" type="module"></script>
+</body>
+</html>

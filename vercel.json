@@ -20,6 +20,9 @@
     },
     "api/website.js": {
       "maxDuration": 30
+    },
+    "api/preview.js": {
+      "maxDuration": 30
     }
   },
   "headers": [
@@ -41,6 +44,15 @@
         {
           "key": "Content-Security-Policy",
           "value": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'"
+        }
+      ]
+    },
+    {
+      "source": "/",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
         }
       ]
     },
@@ -101,6 +113,30 @@
     {
       "source": "/api/plan/confirm",
       "destination": "/api/plan-confirm"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "d"
+        }
+      ],
+      "destination": "/tools/email",
+      "permanent": false
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "domain"
+        }
+      ],
+      "destination": "/tools/email",
+      "permanent": false
     }
   ]
 }

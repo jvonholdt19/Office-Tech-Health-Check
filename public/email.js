@@ -1,12 +1,7 @@
-// ---------------------------------------------------------------
-// Settings: change these when you have a business name and a booking link.
-// ---------------------------------------------------------------
-const CONFIG = {
-  // A Calendly / Cal.com link, or a mailto: link. "{domain}" is replaced with the scanned domain.
-  ctaUrl: "mailto:hello@example.com?subject=Office%20Tech%20Health%20Check%20for%20{domain}",
-};
-
-const $ = (id) => document.getElementById(id);
+// Email Security Check (/tools/email, technician only). The full email & domain scanner that used to
+// live at /. It calls the private /api/scan with the technician session cookie; signed-out visitors
+// see the access-code gate from tech-session.js.
+import { $, api, initGate } from "./tech-session.js";
 const els = {
   form: $("scan-form"),
   input: $("domain"),
@@ -47,17 +42,11 @@ function headlineFor(report) {
   return `Important gaps found: ${problems} item${problems === 1 ? "" : "s"} to fix`;
 }
 
-function setCta(domain) {
-  const url = CONFIG.ctaUrl.replaceAll("{domain}", encodeURIComponent(domain || ""));
-  $("cta-button").href = url;
-  $("header-cta").href = url;
-}
-
 let stepTimer;
 function showLoading(on) {
   els.loading.hidden = !on;
   els.button.disabled = on;
-  els.button.textContent = on ? "Checking…" : "Run free check";
+  els.button.textContent = on ? "Checking…" : "Run check";
   clearInterval(stepTimer);
   const items = [...els.steps.children];
   items.forEach((li) => li.classList.remove("active", "done"));
@@ -141,7 +130,7 @@ function renderReport(report) {
   );
   els.fixCard.hidden = report.fixes.length === 0;
   els.scannedAt.textContent = new Date(report.scannedAt).toLocaleString();
-  setCta(report.domain);
+  $("plan-link").href = `/plan?d=${encodeURIComponent(report.domain)}`;
 
   els.report.hidden = false;
   els.report.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -152,8 +141,8 @@ async function scan(rawDomain) {
   els.report.hidden = true;
   showLoading(true);
   try {
-    const res = await fetch(`/api/scan?domain=${encodeURIComponent(rawDomain)}`);
-    const body = await res.json().catch(() => ({}));
+    const { res, body } = await api(`/api/scan?domain=${encodeURIComponent(rawDomain)}`);
+    if (res.status === 401) return; // the gate is shown again by api()
     if (!res.ok) throw new Error(body.error || "Something went wrong. Please try again.");
     const url = new URL(location.href);
     url.searchParams.set("d", body.domain);
@@ -192,10 +181,16 @@ $("scan-another").addEventListener("click", () => {
   els.input.focus();
 });
 
-setCta("");
-// Shareable links: /?d=acme.com runs the check automatically.
-const initial = new URLSearchParams(location.search).get("d");
-if (initial) {
-  els.input.value = initial;
-  scan(initial);
-}
+// Links like /tools/email?d=acme.com (and old /?d= or /?domain= links, redirected here by vercel.json)
+// pre-fill the domain once signed in. Like the Website Security Check, a link never starts a scan
+// by itself: the technician presses "Run check".
+initGate({
+  contentId: "tool",
+  onSignedIn: () => {
+    const params = new URLSearchParams(location.search);
+    const initial = params.get("d") || params.get("domain");
+    if (initial && !els.input.value) els.input.value = initial.slice(0, 253);
+    els.input.focus();
+  },
+  onSignedOut: () => (els.report.hidden = true),
+});

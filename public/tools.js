@@ -1,12 +1,12 @@
 // Technician tools dashboard (/tools). The cards come from the TOOLS registry below.
-// To move a tool (e.g. the email scanner, today at "/") under /tools later, change its href here;
-// nothing else on the dashboard depends on where a tool lives.
+// Every tool lives under /tools behind the technician sign-in; the public lander is at /.
+// To move a tool, change its href here; nothing else on the dashboard depends on where a tool lives.
 import { $, h, initGate } from "./tech-session.js";
 
 export const TOOLS = [
-  { id: "email-domain", name: "Email & Domain Health Check", blurb: "SPF, DMARC, DKIM, domain registration and certificate, from public records. The public scanner.", href: "/", status: "live" },
+  { id: "email-security", name: "Email Security Check", blurb: "Email platform, SPF, DMARC, DKIM, domain registration and website certificate, from public records.", href: "/tools/email", status: "live" },
+  { id: "domain-health", name: "Domain Health", blurb: "Renewal date, transfer lock, nameservers, SOA, MX, CAA, DNSSEC and dangling CNAMEs, from public DNS and RDAP.", href: "/tools/domain", status: "live" },
   { id: "website-security", name: "Website Security Check", blurb: "HTTPS, certificate, security headers, cookies, mixed content and WordPress version, from one passive homepage visit.", href: "/tools/website", status: "live" },
-  { id: "domain-health", name: "Domain Health", blurb: "Registrar, renewals, nameservers and DNSSEC in one place.", href: null, status: "soon" },
   { id: "breach-check", name: "Breach Check", blurb: "Whether the business's email addresses appear in known data breaches.", href: null, status: "soon" },
   { id: "exposed-services", name: "Exposed Services", blurb: "Internet-facing services a business may not know it's running.", href: null, status: "soon" },
   { id: "backup-checklist", name: "Backup Checklist", blurb: "A guided walkthrough of what's backed up, where, and whether restores work.", href: null, status: "soon" },

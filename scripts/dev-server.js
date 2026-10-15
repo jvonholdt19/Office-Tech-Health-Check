@@ -9,6 +9,7 @@ import verifyHandler from "../api/verify.js";
 import sessionHandler from "../api/session.js";
 import confirmHandler from "../api/plan-confirm.js";
 import websiteHandler from "../api/website.js";
+import previewHandler from "../api/preview.js";
 import { setStoreForTests, memoryStore } from "../lib/store.js";
 
 // Local preview only: without Supabase credentials, keep rate limits and the audit log in memory so
@@ -24,7 +25,13 @@ const port = Number(process.env.PORT || 3000);
 
 http
   .createServer(async (req, res) => {
-    const { pathname } = new URL(req.url, "http://localhost");
+    const { pathname, searchParams } = new URL(req.url, "http://localhost");
+    // Same as vercel.json: old scanner links (/?d= or /?domain=) go to the technician tool, query kept.
+    if (pathname === "/" && (searchParams.has("d") || searchParams.has("domain"))) {
+      res.writeHead(307, { Location: `/tools/email${req.url.slice(1)}` }).end();
+      return;
+    }
+    if (pathname === "/api/preview") return previewHandler(req, res);
     if (pathname === "/api/scan") return handler(req, res);
     if (pathname === "/api/plan") return planHandler(req, res);
     if (pathname === "/api/verify") return verifyHandler(req, res);
