@@ -113,17 +113,50 @@ test("fetchPage refuses bad URLs before any DNS lookup or connection", async () 
   }
 });
 
-test("urlRefusal: scope is the target and its subdomains only", () => {
+test("urlRefusal: scope is the exact host and its www. variant only", () => {
   assert.equal(urlRefusal("https://www.shop.example/a", "shop.example"), null);
   assert.equal(urlRefusal("https://shop.example/", "shop.example"), null);
-  assert.match(urlRefusal("https://evilshop.example/", "shop.example"), /outside/);
-  assert.match(urlRefusal("https://shop.example.evil.test/", "shop.example"), /outside/);
+  assert.equal(urlRefusal("https://shop.example/", "www.shop.example"), null, "www → bare is allowed too");
+  assert.match(urlRefusal("https://blog.shop.example/", "shop.example"), /off-site redirect to blog\.shop\.example/);
+  assert.match(urlRefusal("https://www.www.shop.example/", "shop.example"), /off-site/);
+  assert.match(urlRefusal("https://evilshop.example/", "shop.example"), /off-site/);
+  assert.match(urlRefusal("https://shop.example.evil.test/", "shop.example"), /off-site/);
   assert.equal(urlRefusal("http://shop.example:80/", "shop.example"), null); // URL drops a default port
   assert.match(urlRefusal("https://shop.example:80/", "shop.example"), /port 80/);
 });
 
+test("redirects to another subdomain or another site stop as an off-site redirect, without connecting", async () => {
+  for (const location of ["https://blog.shop.example/", "https://shop.example.evil.test/", "https://other.example/landing"]) {
+    const log = [];
+    const dns = { a: { ...shopDns.a, "blog.shop.example": ["93.184.216.34"], "shop.example.evil.test": ["93.184.216.34"], "other.example": ["93.184.216.34"] } };
+    const request = fakeSite({ "https://shop.example/": { status: 301, headers: { location } } }, log);
+    const r = await fetchChain("https://shop.example/", { scope: "shop.example", resolver: fakeResolver(dns), request });
+    assert.equal(log.length, 1, `${location} was not requested`);
+    assert.equal(r.stopped.offsite, true, location);
+    assert.equal(r.stopped.location, location);
+    assert.match(r.stopped.reason, /off-site redirect .*not followed/);
+  }
+  // Private/metadata targets are refused for being unsafe, not labelled off-site.
+  const r = await fetchChain("https://shop.example/", { scope: "shop.example", resolver: fakeResolver(shopDns), request: fakeSite({ "https://shop.example/": { status: 302, headers: { location: "http://169.254.169.254/" } } }) });
+  assert.equal(r.stopped.offsite, undefined);
+});
+
+test("bare ↔ www redirects are followed, each hop re-vetted", async () => {
+  const lookups = [];
+  const base = fakeResolver(shopDns);
+  const resolver = { resolve4: (n) => (lookups.push(n), base.resolve4(n)), resolve6: (n) => base.resolve6(n) };
+  const request = fakeSite({
+    "https://shop.example/": { status: 301, headers: { location: "https://www.shop.example/" } },
+    "https://www.shop.example/": { status: 200, headers: {}, body: "ok" },
+  });
+  const r = await fetchChain("https://shop.example/", { scope: "shop.example", resolver, request });
+  assert.equal(r.final.url, "https://www.shop.example/");
+  assert.equal(r.stopped, null);
+  assert.deepEqual(lookups, ["shop.example", "www.shop.example"]);
+});
+
 test("redirects to private addresses, file:, other ports or other domains are refused WITHOUT connecting", async () => {
-  for (const location of ["http://127.0.0.1/", "http://169.254.169.254/latest/meta-data/", "file:///etc/passwd", "https://shop.example:8080/", "https://other.example/", "http://[::ffff:10.0.0.1]/"]) {
+  for (const location of ["http://127.0.0.1/", "http://169.254.169.254/latest/meta-data/", "file:///etc/passwd", "https://shop.example:8080/", "https://other.example/", "https://blog.shop.example/", "http://[::ffff:10.0.0.1]/"]) {
     const log = [];
     const request = fakeSite({ "https://shop.example/": { status: 302, headers: { location } } }, log);
     const r = await fetchChain("https://shop.example/", { scope: "shop.example", resolver: fakeResolver(shopDns), request });

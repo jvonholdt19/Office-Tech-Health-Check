@@ -48,7 +48,7 @@ Import the GitHub repo into Vercel with the Framework Preset set to **Other**. N
 
 `/tools` is a dashboard of technician tools behind the same sign-in as `/plan`. The cards come from the `TOOLS` registry in `public/tools.js` (`{ id, name, blurb, href, status: "live" | "soon" }`); moving a tool means changing its `href` there. Live today: the Email & Domain Health Check (still at `/`) and the Website Security Check (`/tools/website`, API `GET /api/website?target=`).
 
-**Website Security Check** makes plain GETs to the homepage over HTTPS and HTTP and follows up to 5 redirects by hand. Every hop is re-resolved and vetted (private, loopback, link-local and metadata addresses are refused) and limited to http(s), default ports, no IP literals and the target domain and its subdomains. It never probes other paths or sends payloads.
+**Website Security Check** makes plain GETs to the homepage over HTTPS and HTTP and follows up to 5 redirects by hand. Every hop is re-resolved and vetted (private, loopback, link-local and metadata addresses are refused) and limited to http(s), default ports, no IP literals and the exact host entered plus its `www.` variant (`acme.com` ↔ `www.acme.com`). A redirect anywhere else, other subdomains included, is reported as an off-site redirect and not followed. `/tools/website?t=acme.com` only pre-fills the field; a scan runs only when the technician presses **Check website**. It never probes other paths or sends payloads.
 
 | Area | Check | Weight |
 |---|---|---|

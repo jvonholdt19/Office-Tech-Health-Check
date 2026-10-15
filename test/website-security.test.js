@@ -192,6 +192,40 @@ test("fetchWordPressVersions reads the public API, caches it, and fails soft", a
   resetWordPressCache();
 });
 
+test("a failed WordPress.org lookup is not cached: the next scan tries again", async () => {
+  resetWordPressCache();
+  let calls = 0;
+  let up = false;
+  const fetchImpl = async () => {
+    calls++;
+    if (!up) return { ok: false, status: 503 };
+    return { ok: true, status: 200, json: async () => ({ offers: [{ current: "6.8.3", version: "6.8.3" }] }) };
+  };
+  assert.equal((await fetchWordPressVersions({ fetchImpl })).ok, false);
+  assert.equal((await fetchWordPressVersions({ fetchImpl })).ok, false);
+  assert.equal(calls, 2, "a failure is retried on the next call, not served from cache");
+  up = true;
+  assert.equal((await fetchWordPressVersions({ fetchImpl })).latest, "6.8.3", "recovers as soon as WordPress.org answers");
+  assert.equal(calls, 3);
+  up = false;
+  assert.equal((await fetchWordPressVersions({ fetchImpl })).latest, "6.8.3", "a success is cached");
+  assert.equal(calls, 3);
+  assert.equal((await fetchWordPressVersions({ fetchImpl, nowMs: Date.now() + 13 * 60 * 60 * 1000 })).ok, false, "and expires after 12 hours");
+  resetWordPressCache();
+});
+
+test("a scan reports an off-site redirect instead of following it", async () => {
+  const log = [];
+  const fetchPage = fakeFetchPage({
+    "https://acmedental.com/": { status: 301, headers: { location: "https://acmedental.wixsite.com/home" } },
+    "http://acmedental.com/": { status: 301, headers: { location: "https://acmedental.com/" } },
+  }, log);
+  const r = await runWebsiteScan("acmedental.com", { resolver: fakeResolver(acmeDns), fetchPage, inspectTls: async () => goodTls, wordpressVersions: versionsOk, now: () => NOW });
+  assert.ok(!log.some((u) => u.includes("wixsite")), "the off-site host was never requested");
+  assert.equal(r.redirects.stopped.https.offsite, true);
+  assert.equal(r.redirects.stopped.https.location, "https://acmedental.wixsite.com/home");
+});
+
 /* ------------------------- input validation ---------------------- */
 
 test("target validation: schemes, IP literals, ports and userinfo", () => {

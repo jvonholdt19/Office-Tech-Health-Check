@@ -50,7 +50,7 @@ function render(r) {
     ),
     r.redirects.https.length ? h("p", { class: "redirect-path" }, "HTTPS: ", h("code", {}, path(r.redirects.https))) : null,
     r.redirects.http.length ? h("p", { class: "redirect-path" }, "HTTP: ", h("code", {}, path(r.redirects.http))) : null,
-    stopped ? h("p", { class: "redirect-path" }, "Not followed: ", h("code", {}, `${stopped.location || ""} (${stopped.reason})`)) : null,
+    stopped ? h("p", { class: "redirect-path" }, stopped.offsite ? "Off-site redirect (not followed): " : "Not followed: ", h("code", {}, stopped.offsite ? stopped.location || "" : `${stopped.location || ""} (${stopped.reason})`)) : null,
     r.unverified.length ? h("p", { class: "redirect-path" }, `Couldn't verify: ${r.unverified.map((u) => u.title).join(", ")}. These are left out of the score.`) : null,
     ...CATEGORY_ORDER.map((cat) => {
       const checks = r.checks.filter((c) => c.category === cat);
@@ -91,13 +91,12 @@ $("website-form").addEventListener("submit", (e) => {
 
 initGate({
   contentId: "tool",
+  // ?t=acme.com only pre-fills the field. A scan never starts from a link: the technician has to
+  // press "Check website" (so a crafted URL can't make a signed-in technician scan a site).
   onSignedIn: () => {
-    $("target").focus();
     const t = new URLSearchParams(location.search).get("t");
-    if (t && !$("target").value) {
-      $("target").value = t;
-      runCheck(t);
-    }
+    if (t && !$("target").value) $("target").value = t.slice(0, 2048);
+    $("target").focus();
   },
   onSignedOut: () => ($("website-report").hidden = true),
 });
