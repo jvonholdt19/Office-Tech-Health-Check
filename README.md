@@ -181,8 +181,10 @@ The technician endpoints **fail closed** (503) until `SESSION_SECRET` (32+ chara
 
 ## Customize
 
-- **Contact details:** the phone number and email on the lander are in `public/index.html` (call to action and footer).
-- **Branding:** the name appears in `public/index.html` (title, header, footer). Colors are CSS variables at the top of `public/styles.css`.
+- **Contact details:** the phone number and email are in the shared footer (`scripts/site-chrome.js`) and the lander's call to action (`public/index.html`).
+- **Colours and base styles:** `public/brand.css`, loaded first on every page. It holds the design tokens (dark screen palette, status and grade colours, and the light palette used when printing), the header, footer, skip link, buttons and inputs. `test/branding.test.js` checks every text/background pair for WCAG 2.2 AA contrast, on screen and in print, so a colour change that fails contrast fails the build.
+- **Header and footer:** every page has the same static markup (no JS injection). The canonical copy is in `scripts/site-chrome.js`; after changing it, run `node scripts/sync-chrome.js` to rewrite the pages (it isn't part of the build). `test/branding.test.js` fails if any page drifts. Technician pages show the tools nav (Tools · Email · Website · Domain · Fix Plan · Sign out) once signed in, and "Back to home" on the sign-in screen.
+- **Icons:** `public/assets/icons.svg` (a `<symbol>` sprite, presentation attributes only). The dashboard cards pick theirs with the `icon` field in the `TOOLS` registry (`public/tools.js`).
 
 ## Roadmap
 

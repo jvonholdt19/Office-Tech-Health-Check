@@ -41,6 +41,17 @@ export function showError(id, msg) {
 }
 
 /**
+ * Header chrome for the signed-in state (markup in scripts/site-chrome.js): the tools nav (#tech-nav,
+ * which holds #lock-btn) shows only while signed in; "Back to home" (#gate-home) only on the gate.
+ */
+export function showSignedInChrome(on) {
+  for (const [id, show] of [["tech-nav", on], ["gate-home", !on]]) {
+    const el = $(id);
+    if (el) el.hidden = !show;
+  }
+}
+
+/**
  * Wire up the sign-in gate. The page provides #gate, #gate-form, #access-code, #gate-error,
  * #lock-btn and a content element (`contentId`) that is shown only while signed in.
  * `onSignedIn` runs every time the content is unlocked.
@@ -50,6 +61,7 @@ export function initGate({ contentId, onSignedIn = () => {}, onSignedOut = () =>
     $("gate").hidden = on;
     $(contentId).hidden = !on;
     $("lock-btn").hidden = !on;
+    showSignedInChrome(on);
     if (on) onSignedIn();
     else onSignedOut();
   };

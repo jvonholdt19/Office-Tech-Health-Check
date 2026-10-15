@@ -1,23 +1,37 @@
 // Technician tools dashboard (/tools). The cards come from the TOOLS registry below.
 // Every tool lives under /tools behind the technician sign-in; the public lander is at /.
 // To move a tool, change its href here; nothing else on the dashboard depends on where a tool lives.
+// `icon` is a symbol id in /assets/icons.svg.
 import { $, h, initGate } from "./tech-session.js";
 
 export const TOOLS = [
-  { id: "email-security", name: "Email Security Check", blurb: "Email platform, SPF, DMARC, DKIM, domain registration and website certificate, from public records.", href: "/tools/email", status: "live" },
-  { id: "domain-health", name: "Domain Health", blurb: "Renewal date, transfer lock, nameservers, SOA, MX, CAA, DNSSEC and dangling CNAMEs, from public DNS and RDAP.", href: "/tools/domain", status: "live" },
-  { id: "website-security", name: "Website Security Check", blurb: "HTTPS, certificate, security headers, cookies, mixed content and WordPress version, from one passive homepage visit.", href: "/tools/website", status: "live" },
-  { id: "breach-check", name: "Breach Check", blurb: "Whether the business's email addresses appear in known data breaches.", href: null, status: "soon" },
-  { id: "exposed-services", name: "Exposed Services", blurb: "Internet-facing services a business may not know it's running.", href: null, status: "soon" },
-  { id: "backup-checklist", name: "Backup Checklist", blurb: "A guided walkthrough of what's backed up, where, and whether restores work.", href: null, status: "soon" },
-  { id: "account-security", name: "Account Security Checklist", blurb: "MFA, admin accounts, shared passwords and offboarding.", href: null, status: "soon" },
-  { id: "device-inventory", name: "Device Inventory", blurb: "Computers, phones and network gear, with update and warranty status.", href: null, status: "soon" },
-  { id: "phishing-quiz", name: "Phishing Quiz", blurb: "A short quiz to help staff spot fake emails.", href: null, status: "soon" },
+  { id: "email-security", icon: "mail", name: "Email Security Check", blurb: "Email platform, SPF, DMARC, DKIM, domain registration and website certificate, from public records.", href: "/tools/email", status: "live" },
+  { id: "domain-health", icon: "domain", name: "Domain Health", blurb: "Renewal date, transfer lock, nameservers, SOA, MX, CAA, DNSSEC and dangling CNAMEs, from public DNS and RDAP.", href: "/tools/domain", status: "live" },
+  { id: "website-security", icon: "globe-lock", name: "Website Security Check", blurb: "HTTPS, certificate, security headers, cookies, mixed content and WordPress version, from one passive homepage visit.", href: "/tools/website", status: "live" },
+  { id: "breach-check", icon: "lock", name: "Breach Check", blurb: "Whether the business's email addresses appear in known data breaches.", href: null, status: "soon" },
+  { id: "exposed-services", icon: "dns", name: "Exposed Services", blurb: "Internet-facing services a business may not know it's running.", href: null, status: "soon" },
+  { id: "backup-checklist", icon: "checklist", name: "Backup Checklist", blurb: "A guided walkthrough of what's backed up, where, and whether restores work.", href: null, status: "soon" },
+  { id: "account-security", icon: "lock", name: "Account Security Checklist", blurb: "MFA, admin accounts, shared passwords and offboarding.", href: null, status: "soon" },
+  { id: "device-inventory", icon: "report", name: "Device Inventory", blurb: "Computers, phones and network gear, with update and warranty status.", href: null, status: "soon" },
+  { id: "phishing-quiz", icon: "mail-shield", name: "Phishing Quiz", blurb: "A short quiz to help staff spot fake emails.", href: null, status: "soon" },
 ];
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** <svg><use href="/assets/icons.svg#id"/></svg>, built in the SVG namespace (h() makes HTML elements). */
+function icon(id) {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  for (const [k, v] of Object.entries({ class: "tool-icon", width: "28", height: "28", "aria-hidden": "true", focusable: "false" })) svg.setAttribute(k, v);
+  const use = document.createElementNS(SVG_NS, "use");
+  use.setAttribute("href", `/assets/icons.svg#${id}`);
+  svg.append(use);
+  return svg;
+}
 
 function card(tool) {
   const live = tool.status === "live" && tool.href;
   const body = [
+    tool.icon ? icon(tool.icon) : null,
     h("div", { class: "tool-card-head" }, h("h2", {}, tool.name), live ? null : h("span", { class: "soon-tag" }, "Coming soon")),
     h("p", {}, tool.blurb),
   ];
