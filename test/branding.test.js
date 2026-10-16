@@ -92,7 +92,7 @@ test("dashboard header: only Fix Plan and Sign out, no Tools menu (the cards are
   // The dashboard script renders every tool from the same registry.
   assert.match(read("public/tools.html"), /<script src="\/dashboard\.js" type="module"><\/script>/);
   assert.match(read("public/dashboard.js"), /import \{ TOOLS \} from "\.\/tools\.js";/);
-  assert.match(read("public/dashboard.js"), /TOOLS\.map\(card\)/);
+  assert.match(read("public/dashboard.js"), /TOOLS\.filter\(\(t\) => !t\.admin \|\| isAdminSession\(\)\)\.map\(card\)/);
 });
 
 test("tool pages and /plan: a Tools menu with All tools, then every live tool grouped by category, current one marked", () => {
@@ -108,7 +108,7 @@ test("tool pages and /plan: a Tools menu with All tools, then every live tool gr
     const expected = CATEGORIES.flatMap((c) => LIVE.filter((t) => t.category === c)).map((t) => [t.href, t.name]);
     assert.deepEqual(links.slice(1), expected, `${f}: every live tool, grouped`);
     for (const t of SOON) assert.ok(!menu.includes(t.name), `${f}: ${t.name} (coming soon) is not in the menu`);
-    const headings = [...menu.matchAll(/<p class="tools-menu-heading" id="([^"]+)">([^<]+)<\/p>\n\s+<ul aria-labelledby="([^"]+)">/g)];
+    const headings = [...menu.matchAll(/<p class="tools-menu-heading" id="([^"]+)"(?: data-admin hidden)?>([^<]+)<\/p>\n\s+<ul aria-labelledby="([^"]+)"(?: data-admin hidden)?>/g)];
     assert.deepEqual(headings.map((m) => m[2]), menuGroups().map((g) => g.category), `${f}: category headings`);
     for (const m of headings) assert.equal(m[1], m[3], `${f}: each list is labelled by its heading`);
     const page = PAGES[f];

@@ -147,16 +147,30 @@ To turn it on: set `XON_DOMAIN_KEYS` (and verify each client domain in XposedOrN
 
 ## Fix Plan Builder (private)
 
-`/plan` turns a scan into **two documents**: a client-facing fix plan (plain English, phases, prices, package total, timeline, what access is needed) and a **technician checklist** (exact DNS records with copy buttons, click paths for the client's DNS host, provider-specific DKIM steps, verification and follow-ups).
+`/plan` turns a scan into **two documents**: a client-facing fix plan (plain English, phases, the fix package, timeline, what access is needed, optional ongoing checkups) and a **technician checklist** (exact DNS records with copy buttons, click paths for the client's DNS host, provider-specific DKIM steps, verification and follow-ups).
 
 Rules the generator follows:
 - It only proposes fixes for checks the report marked **At risk** or **Needs attention**. Passing checks are never charged for.
+- **Pricing** (all in `lib/config.js`, the only place prices live; flat fees per business, never per user):
+
+  | | Price | When |
+  |---|---|---|
+  | Standard fix (one-time) | $350 | One domain and one email provider |
+  | Plus fix (one-time) | $550 | Extra sending services or messy records |
+  | Quarterly Checkups (optional) | $150/year | |
+  | Monthly Watch (optional) | $35/month | |
+  | Email migration (quoted separately) | from $1,500 | Hosting email → Google Workspace or Microsoft 365 |
+
+  The plan lists the fixes (no per-fix prices), shows both packages and recommends one: **Plus** when the scan shows other services sending email besides the provider (extra SPF includes or a redirect), mail split across providers, more than one SPF or DMARC record, or an SPF record over its limits; otherwise **Standard**. The reasons are printed under the packages.
+- **Pricing sheet** (`/tools/pricing`, admins only): every price and offer above, read live from `lib/config.js` through `GET /api/pricing`, with the internal note that the founding offer is Standard pricing and Plus-level work for founding clients is decided case by case. Printable. It's listed under **Admin** on the dashboard and in the Tools menu, and is never linked from the public lander or client plans. Admin access goes through one hook, `isAdmin()` in `lib/admin.js`: today every signed-in technician is an admin; to add a separate admin role later, change it there (the session reports `admin`, admin-only tools hide for everyone else, and `/api/pricing` answers 403).
+- **"After these fixes" grade:** the plan re-scores the report with every check it fixes set to pass. Anything still failing or warning (for example email protection on a domain with no mail servers, which the plan doesn't change until the client confirms how they use email) is listed under "Still capped at … because", so a grade that doesn't move is always explained.
+- **Founding client offer** (first three clients): a Standard fix for $210 plus a free first year of Quarterly Checkups, in exchange for a written testimonial and permission to use the client's name. It's never shown unless the technician ticks **Show the founding client offer** on `/plan` for that plan (off by default, reset for every new plan). Set `FOUNDING_OFFER` to `null` in `lib/config.js` to remove it.
 - Checks marked **Couldn't verify** become free "confirm at kickoff" items.
 - SPF repairs keep every existing sender, merge duplicate records, add the email platform and end in `~all`.
 - DMARC is staged: `p=none` with reports, then `quarantine`, then `reject`.
 
 **Setup (one time):** see [Technician access and environment variables](#technician-access-and-environment-variables) below, then:
-1. Edit prices, the package, the monthly offer and branding in `lib/config.js`.
+1. Edit the packages, ongoing options, founding offer and branding in `lib/config.js`.
 2. DMARC reports for clients go to `BUSINESS.dmarcReportAddress` (default `dmarc@nwimpm.com`). In Cloudflare, nwimpm.com:
    - Email Routing → add a rule for `dmarc@nwimpm.com`, sending to a mailbox of your choice.
    - DNS → add TXT `*._report._dmarc` with value `v=DMARC1`. This one wildcard record authorizes reports from every client domain.

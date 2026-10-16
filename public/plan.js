@@ -1,7 +1,7 @@
 // Fix Plan Builder (private). Renders /api/plan output as a client proposal and a
 // technician checklist. All text is inserted with textContent, never innerHTML, because
 // DNS records come from the prospect's domain and must be treated as untrusted.
-import { showSignedInChrome, checkSession, rememberFeatures } from "./tech-session.js";
+import { showSignedInChrome, checkSession, rememberSession } from "./tech-session.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -22,6 +22,10 @@ function h(tag, attrs = {}, ...children) {
 }
 
 const money = (n) => `$${Number(n).toLocaleString("en-US")}`;
+
+// Founding client offer (first three clients): shown in the client plan only when the technician ticks
+// it for this plan. Off by default, and reset to off for every new plan.
+let showFoundingOffer = false;
 const fmtDate = (iso) => new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
 // Technician access is a server-side session: the code is sent once to /api/session, which sets an
@@ -75,7 +79,16 @@ function renderClient(plan) {
     h("h2", {}, `Office Tech Fix Plan for ${plan.domain}`),
   );
 
-  if (plan.nothingToFix) {
+  // What the plan can't fix on its own, in plain English (see projectGrade in lib/plan.js).
+  const limits = plan.projected?.limitedBy || [];
+  const limitsList = () => h("ul", { class: "grade-limits" }, limits.map((l) => h("li", {}, l.reason)));
+
+  if (plan.nothingToFix && limits.length) {
+    root.append(
+      h("p", {}, `There's nothing we can fix straight away, but the health check graded ${plan.domain} ${plan.current.grade ?? "low"}. These need a conversation with you first:`),
+      limitsList(),
+    );
+  } else if (plan.nothingToFix) {
     root.append(
       h("p", {}, "Good news: the health check didn't find anything that needs fixing right now."),
       plan.verifyItems.length ? h("p", { class: "muted" }, "A few items couldn't be confirmed from outside. We can verify them with you in a short call.") : null,
@@ -86,6 +99,8 @@ function renderClient(plan) {
         gradeChip(plan.current.grade), h("span", { class: "arrow" }, "→"), gradeChip(plan.projected.grade),
         h("div", { class: "grade-caption" }, `Today: ${plan.current.grade ?? "not graded"}${plan.current.score != null ? ` (${plan.current.score}/100)` : ""}. After these fixes: ${plan.projected.grade} (${plan.projected.score}/100).`),
       ),
+      limits.length ? h("p", { class: "grade-limits-title" }, plan.projected.grade === "A" ? "Still to confirm with you:" : `Still capped at ${plan.projected.grade} because:`) : null,
+      limits.length ? limitsList() : null,
       h("p", {}, `We found ${plan.items.length} thing${plan.items.length === 1 ? "" : "s"} to fix. None of them require new hardware or software, and your team can keep working normally throughout. Here's exactly what we'll do, in order.`),
     );
 
@@ -96,7 +111,7 @@ function renderClient(plan) {
         const it = plan.items.find((x) => x.id === id);
         root.append(
           h("div", { class: "fix-item" },
-            h("div", { class: "fix-item-head" }, h("h4", {}, it.title), h("span", { class: "price" }, money(it.price))),
+            h("div", { class: "fix-item-head" }, h("h4", {}, it.title)),
             h("p", { class: "why" }, it.clientWhy),
             h("p", { class: "change" }, it.clientChange),
           ),
@@ -104,19 +119,40 @@ function renderClient(plan) {
       }
     }
 
-    // Investment
-    root.append(h("h3", {}, "Investment"));
-    const rows = plan.items.map((it) => h("tr", {}, h("td", {}, it.title), h("td", {}, money(it.price))));
+    // Investment: one flat package for every fix above (prices come from lib/config.js via the plan).
     const p = plan.pricing;
-    if (p.package) {
-      rows.push(h("tr", { class: "strike" }, h("td", {}, "Total if done individually"), h("td", {}, money(p.itemsTotal))));
-      rows.push(h("tr", { class: "total" }, h("td", {}, p.package.name), h("td", {}, money(p.package.price))));
-    } else {
-      rows.push(h("tr", { class: "total" }, h("td", {}, "Total"), h("td", {}, money(p.itemsTotal))));
+    root.append(h("h3", {}, "Investment"));
+    root.append(
+      h("div", { class: "packages" },
+        p.packages.map((pk) =>
+          h("div", { class: "package", "data-recommended": String(pk.recommended) },
+            h("div", { class: "package-head" },
+              h("h4", {}, pk.name),
+              pk.recommended ? h("span", { class: "package-tag" }, "Recommended for you") : null,
+              h("span", { class: "price" }, pk.label),
+            ),
+            h("p", { class: "package-scope" }, pk.scope),
+            h("p", { class: "muted" }, pk.blurb),
+          ),
+        ),
+      ),
+    );
+    if (p.recommended?.reasons?.length) {
+      root.append(h("p", { class: "muted" }, `Why ${p.recommended.name}: ${p.recommended.reasons.join(" ")}`));
     }
-    root.append(h("table", { class: "price-table" }, h("tbody", {}, rows)));
-    if (p.package) root.append(h("p", { class: "muted" }, `${p.package.blurb} You save ${money(p.package.savings)}.`));
-    root.append(h("p", { class: "muted" }, "One-time fee. Includes verifying every fix with a follow-up health check."));
+    root.append(h("p", { class: "muted" }, "One-time fee for the whole business. Includes checking every fix with a follow-up health check."));
+
+    // Founding offer: only when the technician turned it on for this plan (off by default).
+    if (p.founding && showFoundingOffer) {
+      const f = p.founding;
+      root.append(
+        h("div", { class: "callout founding-offer" },
+          h("div", { class: "founding-label" }, `${f.name} · first ${f.limit} clients only`),
+          h("p", {}, h("strong", {}, `${f.packageName} fix for ${f.label}`), ` (usually ${f.regularLabel})`, f.bonus ? `, plus ${f.bonus.name} free for the first year (usually ${f.bonus.regularLabel}).` : "."),
+          h("p", { class: "muted" }, f.terms),
+        ),
+      );
+    }
 
     // Timeline
     root.append(
@@ -144,9 +180,19 @@ function renderClient(plan) {
     }
   }
 
-  if (plan.pricing.monthly) {
-    const m = plan.pricing.monthly;
-    root.append(h("h3", {}, "Keep it that way (optional)"), h("div", { class: "callout" }, h("strong", {}, `${m.name}: ${money(m.price)}/month. `), m.blurb));
+  if (plan.pricing.recurring.length) {
+    root.append(
+      h("h3", {}, "Keep it that way (optional)"),
+      h("div", { class: "recurring" },
+        plan.pricing.recurring.map((r) =>
+          h("div", { class: "callout recurring-option", "data-period": r.period },
+            h("div", { class: "package-head" }, h("h4", {}, r.name), h("span", { class: "price" }, r.label)),
+            h("p", { class: "muted" }, r.blurb),
+          ),
+        ),
+      ),
+      h("p", { class: "muted" }, "One flat fee for the whole business, not per person."),
+    );
   }
 
   root.append(
@@ -224,7 +270,7 @@ function renderTech(plan, report) {
       h("div", { class: "fact" }, h("div", { class: "k" }, "Nameservers"), h("div", { class: "v" }, (plan.dnsHost.nameservers || []).join(", ") || "n/a")),
       h("div", { class: "fact" }, h("div", { class: "k" }, "Registrar"), h("div", { class: "v" }, plan.registrar || "Unknown")),
       h("div", { class: "fact" }, h("div", { class: "k" }, "Grade now → target"), h("div", { class: "v" }, `${plan.current.grade ?? "–"} (${plan.current.score ?? "–"}) → ${plan.projected.grade ?? "–"} (${plan.projected.score ?? "–"})`)),
-      h("div", { class: "fact" }, h("div", { class: "k" }, "Quote"), h("div", { class: "v" }, money(plan.pricing.recommendedTotal))),
+      h("div", { class: "fact" }, h("div", { class: "k" }, "Quote"), h("div", { class: "v" }, plan.pricing.recommended ? `${plan.pricing.recommended.name} ${plan.pricing.recommended.label}${plan.pricing.founding ? ` (founding offer, if used: ${plan.pricing.founding.label})` : ""}` : "Nothing to fix")),
     ),
     h("p", { class: "muted" }, `Add DNS records at: ${plan.dnsHost.where}`),
   );
@@ -666,6 +712,9 @@ async function buildPlan(domain, opts = {}) {
     lastBuild = { domain: body.plan.domain, zone: zoneUpload, confirmExport: opts.confirmExport || null, body };
     locked.length = 0;
     confirmedValues = null;
+    showFoundingOffer = false;
+    $("founding-toggle").checked = false;
+    $("founding-row").hidden = !body.plan.pricing.founding;
     renderClient(body.plan);
     renderTech(body.plan, body.report);
     $("tech-view").prepend(renderChangeReview(body));
@@ -692,13 +741,18 @@ $("gate-form").addEventListener("submit", async (e) => {
   try {
     const { res, body } = await api("/api/session", { method: "POST", body: { code } });
     if (!res.ok) return showError("gate-error", body.error || "Couldn't sign in.");
-    rememberFeatures(body.features);
+    rememberSession(body);
   } catch {
     return showError("gate-error", "Couldn't reach the server.");
   }
   unlockUI(true);
   const d = new URLSearchParams(location.search).get("d");
   if (d) buildPlan(d);
+});
+
+$("founding-toggle").addEventListener("change", (e) => {
+  showFoundingOffer = e.target.checked;
+  if (lastBuild) renderClient(lastBuild.body.plan);
 });
 
 $("plan-form").addEventListener("submit", (e) => {

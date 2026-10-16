@@ -1,6 +1,6 @@
 // Technician tools dashboard (/tools): one card per tool in the registry (tools.js).
 // Every tool lives under /tools behind the technician sign-in; the public lander is at /.
-import { $, h, initGate, featureEnabled } from "./tech-session.js";
+import { $, h, initGate, featureEnabled, isAdminSession } from "./tech-session.js";
 import { TOOLS } from "./tools.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -29,7 +29,8 @@ function card(tool) {
 }
 
 function render() {
-  $("tool-grid").replaceChildren(...TOOLS.map(card));
+  // Admin-only tools (tools.js `admin`) are left off for non-admins.
+  $("tool-grid").replaceChildren(...TOOLS.filter((t) => !t.admin || isAdminSession()).map(card));
 }
 
 initGate({ contentId: "dashboard", onSignedIn: render });

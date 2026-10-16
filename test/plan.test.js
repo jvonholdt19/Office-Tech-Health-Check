@@ -1,16 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runScan } from "../lib/scan.js";
-import { buildPlan, recommendSpf, recommendDmarc } from "../lib/plan.js";
+import { buildPlan, recommendSpf, recommendDmarc, packageFit, periodLabel, formatPrice } from "../lib/plan.js";
+import * as CONFIG from "../lib/config.js";
 import { identifyDnsHost } from "../lib/checks/dnshost.js";
 import handler, { passcodeMatches } from "../api/plan.js";
 import { setStoreForTests, memoryStore } from "../lib/store.js";
 import { fakeDeps, goodTls, rdapData, DKIM_RECORD } from "./fakes.js";
 
-const PRICES = { "domain-security": 75, "domain-renewal": 50, spf: 100, dkim: 75, dmarc: 200, ssl: 100, "https-redirect": 50 };
-const PKG = [{ id: "pkg", name: "Package", price: 450, covers: Object.keys(PRICES), blurb: "All of it." }];
-const BIZ = { name: "NWIM PM", fullName: "x", contactEmail: "josh@nwimpm.com", bookingUrl: "https://cal.com/x", dmarcReportAddress: "dmarc@nwimpm.com" };
-const opts = { business: BIZ, prices: PRICES, packages: PKG, quotes: { "email-migration": { title: "Move email", from: 1500 } }, monthly: null };
+const BIZ = { name: "NWIM PM", fullName: "x", contactEmail: "info@nwimpm.com", bookingUrl: "https://cal.com/x", dmarcReportAddress: "dmarc@nwimpm.com" };
+// The real packages, recurring options and founding offer from lib/config.js (the single source of truth).
+const opts = { business: BIZ, quotes: { "email-migration": { title: "Move email", from: 1500 } } };
 
 async function neglectedOffice() {
   const d = "old.example.net";
@@ -60,18 +60,29 @@ test("neglected office: exact records, urgent renewal, package pricing and proje
   assert.ok(dmarc.steps.some((s) => s.includes("*._report._dmarc")), "explains external report authorization");
   const dom = plan.items.find((i) => i.id === "domain-security");
   assert.match(dom.title, /urgent/);
-  assert.equal(dom.price, 125);
-  assert.equal(plan.pricing.itemsTotal, 650);
-  assert.equal(plan.pricing.package.price, 450);
-  assert.equal(plan.pricing.package.savings, 200);
-  assert.equal(plan.pricing.recommendedTotal, 450);
+  assert.ok(plan.items.every((it) => !("price" in it) && !("priceKeys" in it)), "no per-fix prices in the plan");
+  // One domain, one email provider, no extra senders: Standard, with Plus shown alongside.
+  assert.deepEqual(plan.pricing.packages.map((p) => [p.id, p.name, p.label, p.recommended]), [["standard", "Standard", "$350", true], ["plus", "Plus", "$550", false]]);
+  assert.deepEqual(plan.pricing.recommended, { id: "standard", name: "Standard", price: 350, label: "$350", reasons: [] });
+  assert.equal(plan.pricing.recommendedTotal, 350);
+  assert.deepEqual(plan.pricing.recurring.map((r) => [r.name, r.label]), [["Quarterly Checkups", "$150/year"], ["Monthly Watch", "$35/month"]]);
+  assert.deepEqual(plan.pricing.founding, {
+    name: "Founding client offer",
+    limit: 3,
+    price: 210,
+    label: "$210",
+    packageName: "Standard",
+    regularLabel: "$350",
+    bonus: { name: "Quarterly Checkups", regularLabel: "$150/year" },
+    terms: "For our first 3 clients only, in exchange for a short written testimonial and permission to use your business name.",
+  });
   assert.equal(plan.current.grade, "F");
   assert.equal(plan.projected.grade, "A");
   assert.equal(plan.quoteItems[0].id, "email-migration");
   assert.ok(plan.accessNeeded.some((a) => /GoDaddy/.test(a)));
 });
 
-test("a single finding produces a single item and no package", async () => {
+test("a single finding produces a single item and the Standard package", async () => {
   const d = "example.com";
   const report = await runScan(d, fakeDeps({
     mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
@@ -82,8 +93,8 @@ test("a single finding produces a single item and no package", async () => {
   }));
   const plan = buildPlan(report, opts);
   assert.deepEqual(plan.items.map((i) => i.id), ["dmarc"]);
-  assert.equal(plan.pricing.package, null);
-  assert.equal(plan.pricing.recommendedTotal, 200);
+  assert.equal(plan.pricing.recommended.id, "standard");
+  assert.equal(plan.pricing.recommendedTotal, 350);
 });
 
 test("a healthy domain gets an empty plan", async () => {
@@ -98,6 +109,9 @@ test("a healthy domain gets an empty plan", async () => {
   const plan = buildPlan(report, opts);
   assert.equal(plan.nothingToFix, true);
   assert.equal(plan.pricing.recommendedTotal, 0);
+  assert.deepEqual(plan.pricing.packages, [], "no fix package when there's nothing to fix");
+  assert.equal(plan.pricing.founding, null);
+  assert.equal(plan.pricing.recurring.length, 2, "ongoing checkups are still offered");
 });
 
 test("unverifiable DKIM becomes a free 'confirm at kickoff' item, not a paid fix", async () => {
@@ -233,4 +247,203 @@ test("existing SPF is replaced, showing the current value next to the new one", 
   assert.equal(spf.records[0].current, "v=spf1 include:mailgun.org +all");
   assert.equal(spf.records[0].value, "v=spf1 include:mailgun.org include:_spf.google.com ~all");
   assert.ok(spf.found.some((f) => /\+all/.test(f)));
+});
+
+/* ------------------------------- pricing (Oct 15 2026) ------------------------------- */
+
+test("approved prices live in lib/config.js: Standard $350, Plus $550, Quarterly $150/year, Monthly $35/month, founding $210", () => {
+  assert.deepEqual(CONFIG.PACKAGES.map((p) => [p.id, p.price]), [["standard", 350], ["plus", 550]]);
+  assert.match(CONFIG.PACKAGES[0].scope, /one domain and one email provider/i);
+  assert.match(CONFIG.PACKAGES[1].scope, /extra sending services or messy records/i);
+  assert.deepEqual(CONFIG.RECURRING_OPTIONS.map((r) => [r.name, r.price, r.period]), [["Quarterly Checkups", 150, "year"], ["Monthly Watch", 35, "month"]]);
+  assert.deepEqual([CONFIG.FOUNDING_OFFER.price, CONFIG.FOUNDING_OFFER.limit, CONFIG.FOUNDING_OFFER.packageId, CONFIG.FOUNDING_OFFER.bonusRecurringId], [210, 3, "standard", "quarterly-checkups"]);
+  assert.deepEqual(CONFIG.QUOTE_ITEMS["email-migration"], { title: "Move email to Google Workspace or Microsoft 365", from: 1500 }, "the migration quote is unchanged");
+  assert.equal(CONFIG.ITEM_PRICES, undefined, "no per-fix prices");
+  assert.equal(CONFIG.MONTHLY_OFFER, undefined, "the old $300 Monthly Tech Desk is gone");
+  const text = JSON.stringify([CONFIG.PACKAGES, CONFIG.RECURRING_OPTIONS, CONFIG.FOUNDING_OFFER]);
+  assert.ok(!/per[- ]user|user adds|removals/i.test(text), "flat fees per business, never per user");
+  assert.ok(!/\bSEO\b|marketing|Google Business|reviews?\b/i.test(text), "non-compete");
+});
+
+test("period labels: /year and /month from the config, never assumed", () => {
+  assert.equal(periodLabel(150, "year"), "$150/year");
+  assert.equal(periodLabel(35, "month"), "$35/month");
+  assert.equal(formatPrice(1500), "$1,500");
+  assert.throws(() => periodLabel(35, "week"), /Unknown billing period/);
+  assert.throws(() => periodLabel(35, undefined), /Unknown billing period/);
+});
+
+test("Plus is recommended for extra sending services or messy records; Standard otherwise", () => {
+  const google = { key: "google", name: "Google Workspace" };
+  const report = (checks) => ({ checks });
+  const spf = (records, codes = []) => ({ id: "spf", status: "warn", data: { records, codes } });
+  assert.deepEqual(packageFit(report([spf(["v=spf1 include:_spf.google.com ~all"])]), google), { id: "standard", reasons: [] }, "only the email provider");
+  const extra = packageFit(report([spf(["v=spf1 include:_spf.google.com include:sendgrid.net include:servers.mcsv.net ~all"])]), google);
+  assert.equal(extra.id, "plus");
+  assert.match(extra.reasons[0], /also sent through SendGrid, Mailchimp/);
+  assert.equal(packageFit(report([spf(["v=spf1 redirect=_spf.other-host.example.net"])]), google).id, "plus", "a redirect to another service counts too");
+  assert.equal(packageFit(report([spf(["v=spf1 include:_spf.google.com ~all", "v=spf1 -all"], ["multiple"])]), google).id, "plus", "duplicate SPF records");
+  assert.equal(packageFit(report([spf(["v=spf1 include:_spf.google.com ~all"], ["too-many-lookups"])]), google).id, "plus", "SPF over its limits");
+  assert.equal(packageFit(report([{ id: "dmarc", status: "fail", data: { code: "multiple", records: ["a", "b"] } }]), google).id, "plus", "duplicate DMARC records");
+  assert.equal(packageFit(report([{ id: "email-platform", status: "warn", data: { code: "mixed-mx", mx: ["a", "b"] } }]), google).id, "plus", "mail split across providers");
+  assert.equal(packageFit(report([]), google).id, "standard");
+});
+
+test("a plan for a business that also sends through another service recommends Plus, and says why", async () => {
+  const d = "example.com";
+  const report = await runScan(d, fakeDeps({
+    mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
+    txt: { [d]: ["v=spf1 include:_spf.google.com include:sendgrid.net ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], "sendgrid.net": ["v=spf1 ip4:5.6.7.8 ~all"], [`google._domainkey.${d}`]: [DKIM_RECORD] },
+    tls: { [d]: goodTls, [`www.${d}`]: goodTls },
+    http: { ok: true, status: 301, location: `https://${d}/` },
+    rdap: rdapData(),
+  }));
+  const plan = buildPlan(report, opts);
+  assert.equal(plan.pricing.recommended.id, "plus");
+  assert.equal(plan.pricing.recommendedTotal, 550);
+  assert.deepEqual(plan.pricing.packages.map((p) => [p.id, p.recommended]), [["standard", false], ["plus", true]]);
+  assert.match(plan.pricing.recommended.reasons.join(" "), /SendGrid/);
+});
+
+test("Fix Plan page: shows both packages and both recurring options with their own period; the founding offer is a toggle, off by default", async () => {
+  const { readFileSync } = await import("node:fs");
+  const js = readFileSync(new URL("../public/plan.js", import.meta.url), "utf8");
+  const html = readFileSync(new URL("../public/plan.html", import.meta.url), "utf8");
+  assert.ok(!/\/month/.test(js), "no hard-coded /month: every period label comes from the plan (lib/config.js)");
+  assert.ok(!/money\(it\.price\)|itemsTotal|pricing\.package\b|pricing\.monthly/.test(js), "no per-fix prices or the old single package/monthly line");
+  assert.match(js, /p\.packages\.map\(\(pk\) =>/);
+  assert.match(js, /plan\.pricing\.recurring\.map\(\(r\) =>/);
+  assert.match(js, /h\("span", \{ class: "price" \}, r\.label\)/);
+  assert.match(js, /let showFoundingOffer = false;/);
+  assert.match(js, /if \(p\.founding && showFoundingOffer\)/);
+  assert.match(js, /showFoundingOffer = false;\n\s+\$\("founding-toggle"\)\.checked = false;/, "reset to off for every new plan");
+  assert.match(html, /<p class="founding-toggle no-print" id="founding-row" hidden>\s*<label class="check-row"><input type="checkbox" id="founding-toggle"> Show the founding client offer/);
+  assert.ok(!/<input type="checkbox" id="founding-toggle"[^>]*checked/.test(html), "unchecked by default");
+  assert.ok(!/\$\d/.test(html) && !/\$\d/.test(js.replace(/`\$\$\{/g, "")), "no prices written into the page: they all come from lib/config.js");
+});
+
+test("the public lander shows no prices", async () => {
+  const { readFileSync } = await import("node:fs");
+  for (const f of ["../public/index.html", "../public/lander.js"]) assert.ok(!/\$\s?\d|\/month|\/year|per user/i.test(readFileSync(new URL(f, import.meta.url), "utf8")), f);
+});
+
+test("the README's price table matches lib/config.js", async () => {
+  const { readFileSync } = await import("node:fs");
+  const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
+  for (const p of CONFIG.PACKAGES) assert.ok(readme.includes(`| ${p.name} fix (one-time) | ${formatPrice(p.price)} |`), p.name);
+  for (const r of CONFIG.RECURRING_OPTIONS) assert.ok(readme.includes(`| ${r.name} (optional) | ${periodLabel(r.price, r.period)} |`), r.name);
+  assert.ok(readme.includes(`a Standard fix for ${formatPrice(CONFIG.FOUNDING_OFFER.price)}`));
+  assert.ok(readme.includes(`from ${formatPrice(CONFIG.QUOTE_ITEMS["email-migration"].from)}`));
+});
+
+/* --------------------------- grade projection ("after these fixes") --------------------------- */
+
+const wikipediaLike = () => runScan("example.org", fakeDeps({ tls: { "example.org": goodTls, "www.example.org": goodTls }, http: { ok: true, status: 301, location: "https://example.org/" }, rdap: rdapData({ locked: false }) }));
+
+test("projection: a domain with no mail servers (the wikipedia.org case) stays F after the plan, and says exactly why", async () => {
+  const report = await wikipediaLike();
+  assert.deepEqual([report.grade, report.score], ["F", 39]);
+  const plan = buildPlan(report, opts);
+  assert.deepEqual(plan.items.map((i) => i.id), ["domain-security"], "the only thing the plan can fix today");
+  // Only the fixed check moves to pass: SPF and DMARC still fail because the plan leaves them out on purpose.
+  assert.deepEqual([plan.projected.grade, plan.projected.score, plan.projected.complete], ["F", 47, false]);
+  assert.deepEqual(plan.projected.limitedBy.map((l) => l.checks), [["spf", "dmarc"], ["email-platform"]]);
+  assert.match(plan.projected.limitedBy[0].reason, /No mail servers were found for example\.org, so approved senders \(SPF\) and impersonation protection \(DMARC\) aren't in this plan/);
+  assert.match(plan.projected.limitedBy[1].reason, /We'll also confirm/);
+});
+
+test("projection: when every problem is in the plan, the plan reaches A with nothing left over", async () => {
+  const d = "example.com";
+  const report = await runScan(d, fakeDeps({
+    mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }] },
+    txt: { [d]: ["v=spf1 ~all"] },
+    tls: { [d]: { ...goodTls, authorized: false, authorizationError: "CERT_HAS_EXPIRED" }, [`www.${d}`]: goodTls },
+    http: { ok: true, status: 200 },
+    rdap: rdapData({ locked: false }),
+  }));
+  assert.equal(report.grade, "F");
+  const plan = buildPlan(report, opts);
+  assert.deepEqual(plan.items.map((i) => i.id), ["domain-security", "spf", "dkim", "dmarc", "ssl", "https-redirect"]);
+  assert.deepEqual(plan.projected, { grade: "A", score: 100, complete: true, limitedBy: [] });
+});
+
+test("projection: something the client must confirm (mixed mail servers) is listed even when the grade reaches A", async () => {
+  const d = "example.net";
+  const report = await runScan(d, fakeDeps({
+    mx: { [d]: [{ exchange: "smtp.google.com", priority: 1 }, { exchange: "mail.example.net", priority: 20 }] },
+    a: { "mail.example.net": ["93.184.216.40"] },
+    txt: { [d]: ["v=spf1 include:_spf.google.com ~all"], "_spf.google.com": ["v=spf1 ip4:1.2.3.4 ~all"], [`google._domainkey.${d}`]: [DKIM_RECORD] },
+    tls: { [d]: goodTls, [`www.${d}`]: goodTls },
+    http: { ok: true, status: 301, location: `https://${d}/` },
+    rdap: rdapData(),
+  }));
+  const plan = buildPlan(report, opts);
+  assert.deepEqual([report.grade, plan.projected.grade, plan.projected.score, plan.projected.complete], ["C", "A", 98, false]);
+  assert.deepEqual(plan.projected.limitedBy.map((l) => l.checks), [["email-platform"]]);
+});
+
+test("projection: every scored check left failing or warning after the plan is explained (no silent F → F)", async () => {
+  const reports = [await wikipediaLike(), await neglectedOffice()];
+  for (const report of reports) {
+    const plan = buildPlan(report, opts);
+    const fixed = new Set(plan.items.flatMap((i) => i.fixes));
+    const leftover = report.checks.filter((c) => c.weight > 0 && ["fail", "warn"].includes(c.status) && !fixed.has(c.id)).map((c) => c.id).sort();
+    assert.deepEqual(plan.projected.limitedBy.flatMap((l) => l.checks).sort(), leftover, report.domain);
+    assert.equal(plan.projected.complete, leftover.length === 0);
+  }
+});
+
+test("Fix Plan page: shows why the grade is capped, and never says 'Good news' when the grade is low but nothing is fixable", async () => {
+  const { readFileSync } = await import("node:fs");
+  const js = readFileSync(new URL("../public/plan.js", import.meta.url), "utf8");
+  assert.match(js, /`Still capped at \$\{plan\.projected\.grade\} because:`/);
+  assert.match(js, /if \(plan\.nothingToFix && limits\.length\) \{/);
+  assert.ok(js.indexOf("plan.nothingToFix && limits.length") < js.indexOf("Good news"), "the low-grade case is handled before 'Good news'");
+});
+
+test("letterhead: NWIM Project Management, and the word 'marketing' appears nowhere outside the non-compete guards", async () => {
+  assert.equal(CONFIG.BUSINESS.fullName, "NWIM Project Management");
+  const { readFileSync, readdirSync, statSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const root = fileURLToPath(new URL("../", import.meta.url));
+  const files = [];
+  const walk = (dir) => {
+    for (const f of readdirSync(dir)) {
+      const p = join(dir, f);
+      if (statSync(p).isDirectory()) walk(p);
+      else if (/\.(js|html|css|md|json|txt|csv|svg)$/.test(f)) files.push(p);
+    }
+  };
+  for (const d of ["api", "lib", "public", "scripts", "docs"]) walk(join(root, d));
+  files.push(join(root, "README.md"), join(root, "CLAUDE.md"));
+  for (const f of files) assert.ok(!/marketing/i.test(readFileSync(f, "utf8")), f);
+  const plan = buildPlan(await neglectedOffice());
+  assert.equal(plan.business.fullName, "NWIM Project Management", "the client plan's letterhead");
+});
+
+test("contact email: info@nwimpm.com from one config value, used by the plan, the booking link and the site footer", async () => {
+  assert.equal(CONFIG.CONTACT_EMAIL, "info@nwimpm.com");
+  assert.equal(CONFIG.BUSINESS.contactEmail, CONFIG.CONTACT_EMAIL);
+  assert.equal(CONFIG.BUSINESS.bookingUrl, "mailto:info@nwimpm.com?subject=Office%20Tech%20Fix%20Plan");
+  const plan = buildPlan(await neglectedOffice());
+  assert.equal(plan.business.contactEmail, "info@nwimpm.com", "Fix Plan letterhead and Questions? line");
+  const { EMAIL, PHONE } = await import("../scripts/site-chrome.js");
+  assert.deepEqual(EMAIL, { href: "mailto:info@nwimpm.com", text: "info@nwimpm.com" });
+  assert.deepEqual(PHONE, { href: "tel:+15073604479", text: "507-360-4479" }, "phone unchanged");
+  // No personal address anywhere in the repo's text files.
+  const { readFileSync, readdirSync, statSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const root = fileURLToPath(new URL("../", import.meta.url));
+  const files = [join(root, "README.md"), join(root, "CLAUDE.md"), join(root, "vercel.json")];
+  const walk = (dir) => {
+    for (const f of readdirSync(dir)) {
+      const p = join(dir, f);
+      if (statSync(p).isDirectory()) walk(p);
+      else if (/\.(js|html|css|md|json|txt|csv|svg|sql)$/.test(f)) files.push(p);
+    }
+  };
+  for (const d of ["api", "lib", "public", "scripts", "test", "docs", "supabase"]) walk(join(root, d));
+  for (const f of files) assert.ok(!readFileSync(f, "utf8").includes("josh" + "@"), f);
 });

@@ -6,6 +6,7 @@
 // The header's Tools menu is generated from the same registry as the dashboard cards
 // (public/tools.js), so adding a live tool there adds it to the menu on every page after a sync.
 import { TOOLS, CATEGORIES } from "../public/tools.js";
+import { CONTACT_EMAIL } from "../lib/config.js";
 
 /**
  * Page kinds:
@@ -21,11 +22,12 @@ export const PAGES = {
   "public/tools/website.html": { kind: "tool", current: "/tools/website" },
   "public/tools/domain.html": { kind: "tool", current: "/tools/domain" },
   "public/tools/breach.html": { kind: "tool", current: "/tools/breach" },
+  "public/tools/pricing.html": { kind: "tool", current: "/tools/pricing" },
   "public/plan.html": { kind: "plan" },
 };
 
 export const PHONE = { href: "tel:+15073604479", text: "507-360-4479" };
-export const EMAIL = { href: "mailto:info@nwimpm.com", text: "info@nwimpm.com" };
+export const EMAIL = { href: `mailto:${CONTACT_EMAIL}`, text: CONTACT_EMAIL }; // from lib/config.js
 
 const indent = (lines, n = 2) => lines.map((l) => " ".repeat(n) + l).join("\n");
 const current = (yes) => (yes ? ' aria-current="page"' : "");
@@ -42,15 +44,17 @@ export function menuGroups(tools = TOOLS) {
 export function toolsMenu(currentHref) {
   const groups = menuGroups().flatMap(({ category, tools }) => {
     const id = `tools-menu-${category.toLowerCase()}`;
+    // Admin-only tools (tools.js `admin`) start hidden; tech-session.js shows them for admin sessions.
+    const adminGroup = tools.every((t) => t.admin) ? " data-admin hidden" : "";
     return [
-      `    <p class="tools-menu-heading" id="${id}">${category}</p>`,
-      `    <ul aria-labelledby="${id}">`,
+      `    <p class="tools-menu-heading" id="${id}"${adminGroup}>${category}</p>`,
+      `    <ul aria-labelledby="${id}"${adminGroup}>`,
       ...tools.map((t) =>
         t.feature
           ? // Behind a feature switch: "Coming soon" until GET /api/session says the switch is on
             // (tech-session.js then swaps the label for the link). Without JS it stays "Coming soon".
             `      <li data-feature="${t.feature}"><a href="${t.href}"${current(t.href === currentHref)} hidden>${t.name}</a><span class="tools-menu-soon">${t.name} <span class="soon-tag">Coming soon</span></span></li>`
-          : `      <li><a href="${t.href}"${current(t.href === currentHref)}>${t.name}</a></li>`,
+          : `      <li${t.admin && !adminGroup ? " data-admin hidden" : ""}><a href="${t.href}"${current(t.href === currentHref)}>${t.name}</a></li>`,
       ),
       `    </ul>`,
     ];

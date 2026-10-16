@@ -53,6 +53,9 @@
 .grade-chip[data-grade="F"] { background: var(--grade-f); }
 .arrow { font-size: 24px; color: var(--muted); }
 .grade-caption { color: var(--muted); font-size: 14px; }
+.grade-limits-title { margin: 4px 0 0; font-weight: 600; }
+.grade-limits { margin: 4px 0 8px; padding-left: 22px; }
+.grade-limits li { margin: 3px 0; }
 
 .fix-item { border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin: 10px 0; break-inside: avoid; }
 .fix-item-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
@@ -68,6 +71,19 @@ table.price-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
 .price-table tr.total td { font-weight: 800; border-bottom: 0; font-size: 17px; }
 .price-table tr.strike td:last-child { text-decoration: line-through; color: var(--muted); font-weight: 400; }
 .callout { background: var(--surface-2); border-radius: 12px; padding: 14px 16px; margin-top: 12px; }
+/* Fix packages, ongoing options and the founding offer (client plan) */
+.packages, .recurring { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 8px; }
+.package { border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; break-inside: avoid; }
+.package[data-recommended="true"] { border: 2px solid var(--accent); }
+.package-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.package-head h4 { margin: 0; font-size: 17px; }
+.package-head .price { margin-left: auto; font-size: 20px; }
+.package-tag { font-size: 12px; font-weight: 700; color: var(--accent); }
+.package-scope { margin: 6px 0 4px; font-weight: 600; }
+.recurring-option { margin-top: 0; break-inside: avoid; }
+.founding-offer { border: 2px dashed var(--accent); margin-top: 16px; }
+.founding-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); }
+.founding-toggle { margin: 18px 0 0; }
 .next-step { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 28px; background: var(--surface-2); border-radius: 12px; padding: 18px 20px; }
 
 /* Technician view */
