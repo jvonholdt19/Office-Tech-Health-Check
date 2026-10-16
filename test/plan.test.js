@@ -8,7 +8,7 @@ import handler, { passcodeMatches } from "../api/plan.js";
 import { setStoreForTests, memoryStore } from "../lib/store.js";
 import { fakeDeps, goodTls, rdapData, DKIM_RECORD } from "./fakes.js";
 
-const BIZ = { name: "NWIM PM", fullName: "x", contactEmail: "josh@nwimpm.com", bookingUrl: "https://cal.com/x", dmarcReportAddress: "dmarc@nwimpm.com" };
+const BIZ = { name: "NWIM PM", fullName: "x", contactEmail: "info@nwimpm.com", bookingUrl: "https://cal.com/x", dmarcReportAddress: "dmarc@nwimpm.com" };
 // The real packages, recurring options and founding offer from lib/config.js (the single source of truth).
 const opts = { business: BIZ, quotes: { "email-migration": { title: "Move email", from: 1500 } } };
 
@@ -420,4 +420,30 @@ test("letterhead: NWIM Project Management, and the word 'marketing' appears nowh
   for (const f of files) assert.ok(!/marketing/i.test(readFileSync(f, "utf8")), f);
   const plan = buildPlan(await neglectedOffice());
   assert.equal(plan.business.fullName, "NWIM Project Management", "the client plan's letterhead");
+});
+
+test("contact email: info@nwimpm.com from one config value, used by the plan, the booking link and the site footer", async () => {
+  assert.equal(CONFIG.CONTACT_EMAIL, "info@nwimpm.com");
+  assert.equal(CONFIG.BUSINESS.contactEmail, CONFIG.CONTACT_EMAIL);
+  assert.equal(CONFIG.BUSINESS.bookingUrl, "mailto:info@nwimpm.com?subject=Office%20Tech%20Fix%20Plan");
+  const plan = buildPlan(await neglectedOffice());
+  assert.equal(plan.business.contactEmail, "info@nwimpm.com", "Fix Plan letterhead and Questions? line");
+  const { EMAIL, PHONE } = await import("../scripts/site-chrome.js");
+  assert.deepEqual(EMAIL, { href: "mailto:info@nwimpm.com", text: "info@nwimpm.com" });
+  assert.deepEqual(PHONE, { href: "tel:+15073604479", text: "507-360-4479" }, "phone unchanged");
+  // No personal address anywhere in the repo's text files.
+  const { readFileSync, readdirSync, statSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const root = fileURLToPath(new URL("../", import.meta.url));
+  const files = [join(root, "README.md"), join(root, "CLAUDE.md"), join(root, "vercel.json")];
+  const walk = (dir) => {
+    for (const f of readdirSync(dir)) {
+      const p = join(dir, f);
+      if (statSync(p).isDirectory()) walk(p);
+      else if (/\.(js|html|css|md|json|txt|csv|svg|sql)$/.test(f)) files.push(p);
+    }
+  };
+  for (const d of ["api", "lib", "public", "scripts", "test", "docs", "supabase"]) walk(join(root, d));
+  for (const f of files) assert.ok(!readFileSync(f, "utf8").includes("josh" + "@"), f);
 });

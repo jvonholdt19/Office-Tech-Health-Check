@@ -6,6 +6,7 @@
 // The header's Tools menu is generated from the same registry as the dashboard cards
 // (public/tools.js), so adding a live tool there adds it to the menu on every page after a sync.
 import { TOOLS, CATEGORIES } from "../public/tools.js";
+import { CONTACT_EMAIL } from "../lib/config.js";
 
 /**
  * Page kinds:
@@ -26,7 +27,7 @@ export const PAGES = {
 };
 
 export const PHONE = { href: "tel:+15073604479", text: "507-360-4479" };
-export const EMAIL = { href: "mailto:info@nwimpm.com", text: "info@nwimpm.com" };
+export const EMAIL = { href: `mailto:${CONTACT_EMAIL}`, text: CONTACT_EMAIL }; // from lib/config.js
 
 const indent = (lines, n = 2) => lines.map((l) => " ".repeat(n) + l).join("\n");
 const current = (yes) => (yes ? ' aria-current="page"' : "");

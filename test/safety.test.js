@@ -7,7 +7,7 @@ import { buildPlan, recommendSpf, recommendDmarc, safetyCheckPlan } from "../lib
 import { fakeDeps, DKIM_RECORD } from "./fakes.js";
 
 const opts = {
-  business: { name: "NWIM PM", fullName: "x", contactEmail: "josh@nwimpm.com", bookingUrl: "x", dmarcReportAddress: "dmarc@nwimpm.com" },
+  business: { name: "NWIM PM", fullName: "x", contactEmail: "info@nwimpm.com", bookingUrl: "x", dmarcReportAddress: "dmarc@nwimpm.com" },
   packages: [], quotes: {}, recurring: [], founding: null,
 };
 
