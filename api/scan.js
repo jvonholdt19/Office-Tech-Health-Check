@@ -1,3 +1,4 @@
+import { consentGiven, CONSENT_REQUIRED } from "../lib/consent.js";
 import { normalizeDomain } from "../lib/domain.js";
 import { runScan } from "../lib/scan.js";
 import { authorize, send } from "../lib/private-api.js";
@@ -13,9 +14,10 @@ export default async function handler(req, res) {
   const url = new URL(req.url, "http://localhost");
   const parsed = normalizeDomain(url.searchParams.get("domain") || "");
   if (parsed.error) return send(res, 400, { error: parsed.error });
+  if (!consentGiven(url)) return send(res, 400, { error: CONSENT_REQUIRED });
   try {
     const report = await runScan(parsed.domain, scanDeps);
-    await audit("scan", { sid: auth.sid, ip: auth.ip, ua: auth.ua, domain: parsed.domain, data: { score: report.score, grade: report.grade, counts: report.counts, durationMs: report.durationMs } }, auth.store);
+    await audit("scan", { sid: auth.sid, ip: auth.ip, ua: auth.ua, domain: parsed.domain, data: { score: report.score, grade: report.grade, counts: report.counts, durationMs: report.durationMs, consent: true } }, auth.store);
     return send(res, 200, report);
   } catch (err) {
     console.error("scan failed", parsed.domain, err);

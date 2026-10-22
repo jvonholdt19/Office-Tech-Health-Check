@@ -20,6 +20,7 @@ const walk = (dir, re, out = []) => {
   return out;
 };
 const HTML = walk(join(root, "public"), /\.html$/);
+const LEGAL = ["public/terms.html", "public/privacy.html"];
 const PAGE_JS = walk(join(root, "public"), /\.js$/);
 const TECH = Object.entries(PAGES).filter(([, p]) => p.kind !== "lander").map(([f]) => f);
 const WITH_MENU = Object.entries(PAGES).filter(([, p]) => p.kind === "tool" || p.kind === "plan").map(([f]) => f);
@@ -40,7 +41,9 @@ test("every page: brand.css first, dark color-scheme, skip link, <main id=main>,
     const sheets = [...html.matchAll(/<link rel="stylesheet" href="([^"]+)">/g)].map((m) => m[1]);
     assert.equal(sheets[0], "/brand.css", `${f}: brand.css is loaded first`);
     assert.match(html, /<meta name="color-scheme" content="dark">/, f);
-    assert.match(html, /<meta name="robots" content="noindex, nofollow">/, f);
+    // The public legal pages (/terms, /privacy) may be indexed; everything else stays noindex.
+    if (!LEGAL.includes(f)) assert.match(html, /<meta name="robots" content="noindex, nofollow">/, f);
+    else assert.ok(!/name="robots"/.test(html), `${f}: indexable`);
     assert.match(html, /<body[^>]*>\n {2}<a class="skip-link" href="#main">Skip to content<\/a>/, `${f}: the skip link is the first thing in <body>`);
     assert.match(html, /<main id="main"[ >]/, f);
     for (const s of ["Powered by NWIM Project Management", 'href="tel:+15073604479"', 'href="mailto:info@nwimpm.com"']) assert.ok(html.includes(s), `${f}: ${s}`);

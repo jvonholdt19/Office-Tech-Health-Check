@@ -2,6 +2,7 @@
 // technician checklist. All text is inserted with textContent, never innerHTML, because
 // DNS records come from the prospect's domain and must be treated as untrusted.
 import { showSignedInChrome, checkSession, rememberSession } from "./tech-session.js";
+import { disclaimerBlock, wireConsent } from "./legal.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -194,6 +195,9 @@ function renderClient(plan) {
       h("p", { class: "muted" }, "One flat fee for the whole business, not per person."),
     );
   }
+
+  // Results disclaimer and the service-agreement line (public/legal.js): on screen and in print.
+  root.append(disclaimerBlock({ fixPlan: true }));
 
   root.append(
     h("div", { class: "next-step no-print" },
@@ -705,8 +709,8 @@ async function buildPlan(domain, opts = {}) {
   $("plan-btn").disabled = true;
   try {
     const { res, body } = zoneUpload
-      ? await api("/api/plan", { method: "POST", body: { domain, zone: zoneUpload, ...(opts.confirmExport ? { confirmExport: opts.confirmExport } : {}) } })
-      : await api(`/api/plan?domain=${encodeURIComponent(domain)}`);
+      ? await api("/api/plan", { method: "POST", body: { domain, consent: true, zone: zoneUpload, ...(opts.confirmExport ? { confirmExport: opts.confirmExport } : {}) } })
+      : await api(`/api/plan?domain=${encodeURIComponent(domain)}&consent=true`);
     if (res.status === 401) return;
     if (!res.ok) throw new Error(body.error || "Something went wrong.");
     lastBuild = { domain: body.plan.domain, zone: zoneUpload, confirmExport: opts.confirmExport || null, body };
@@ -729,7 +733,7 @@ async function buildPlan(domain, opts = {}) {
     showError("plan-error", err.message);
   } finally {
     $("plan-loading").hidden = true;
-    $("plan-btn").disabled = false;
+    consent.refresh();
   }
 }
 
@@ -746,8 +750,7 @@ $("gate-form").addEventListener("submit", async (e) => {
     return showError("gate-error", "Couldn't reach the server.");
   }
   unlockUI(true);
-  const d = new URLSearchParams(location.search).get("d");
-  if (d) buildPlan(d);
+  prefillFromLink();
 });
 
 $("founding-toggle").addEventListener("change", (e) => {
@@ -755,10 +758,22 @@ $("founding-toggle").addEventListener("change", (e) => {
   if (lastBuild) renderClient(lastBuild.body.plan);
 });
 
+// Consent checkbox: "Build fix plan" stays disabled until it's ticked (public/legal.js).
+const consent = wireConsent($("plan-consent"), $("plan-btn"));
+
+// Links like /plan?d=example.com (from the Email Security Check) pre-fill the domain. A plan is only
+// built once the technician ticks the consent box and presses "Build fix plan".
+function prefillFromLink() {
+  const d = new URLSearchParams(location.search).get("d");
+  if (d && !$("domain").value) $("domain").value = d.slice(0, 253);
+}
+
 $("plan-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const v = $("domain").value.trim();
-  if (v) buildPlan(v);
+  if (!v) return;
+  if (!consent.ok()) return showError("plan-error", "Please tick the box to confirm you own this domain or have the owner's permission to check it.");
+  buildPlan(v);
 });
 
 $("lock-btn").addEventListener("click", async () => {
@@ -787,8 +802,6 @@ checkSession({
   onError: (msg) => showError("gate-error", msg),
   show: (on) => {
     unlockUI(on);
-    if (!on) return;
-    const d = new URLSearchParams(location.search).get("d");
-    if (d) buildPlan(d);
+    if (on) prefillFromLink();
   },
 });

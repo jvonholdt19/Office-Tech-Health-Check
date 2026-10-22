@@ -2,6 +2,7 @@
 // summary card, grade-cap line, check cards with "How to fix" guides, Copy buttons, the per-domain
 // "Platform for this client" picker, the "What to fix" list, and print handling. Everything goes
 // through h() / textContent, never innerHTML, because report text comes from the checked site/domain.
+import { disclaimerBlock } from "./legal.js";
 import { $, h } from "./tech-session.js";
 
 export const STATUS_LABEL = { pass: "Good", warn: "Needs attention", fail: "At risk", unknown: "Couldn't verify", info: "FYI" };
@@ -218,6 +219,7 @@ export function createReportView(opts) {
       fixes.length
         ? h("section", { class: "fix-card" }, h("h3", {}, "What to fix"), h("ol", {}, fixes.map((f) => h("li", {}, h("strong", {}, guideLink(f.id, Boolean(byId[f.id]?.guide), f.title), ": "), f.fix))))
         : null,
+      disclaimerBlock(),
       h("p", { class: "report-foot" }, `Checked ${new Date(r.scannedAt).toLocaleString()} in ${(r.durationMs / 1000).toFixed(1)}s. ${opts.footNote ? opts.footNote(r) : ""}`.trim()),
     ];
     root.replaceChildren(...parts.filter(Boolean));

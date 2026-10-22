@@ -2,6 +2,7 @@
 // Record values come from public DNS and RDAP, so everything goes in through textContent.
 import { $, api, showError, initGate } from "./tech-session.js";
 import { createReportView } from "./report-view.js";
+import { wireConsent } from "./legal.js";
 
 const CATEGORY_ORDER = ["Registration", "DNS", "Email"];
 const CATEGORY_BLURB = {
@@ -43,13 +44,16 @@ const view = createReportView({
   footNote: () => "Based on public DNS and registry (RDAP) data at the time of the check.",
 });
 
+// Consent checkbox: the button stays disabled until it's ticked (public/legal.js).
+const consent = wireConsent($("domain-consent"), $("domain-btn"));
+
 async function runCheck(domain) {
   showError("domain-error", "");
   $("domain-report").hidden = true;
   $("domain-loading").hidden = false;
   $("domain-btn").disabled = true;
   try {
-    const { res, body } = await api(`/api/domain?domain=${encodeURIComponent(domain)}`);
+    const { res, body } = await api(`/api/domain?domain=${encodeURIComponent(domain)}&consent=true`);
     if (res.status === 401) return;
     if (!res.ok) return showError("domain-error", body.error || "The check failed. Try again.");
     view.render(body);
@@ -58,14 +62,16 @@ async function runCheck(domain) {
     showError("domain-error", "Couldn't reach the server.");
   } finally {
     $("domain-loading").hidden = true;
-    $("domain-btn").disabled = false;
+    consent.refresh();
   }
 }
 
 $("domain-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const v = $("target").value.trim();
-  if (v) runCheck(v);
+  if (!v) return;
+  if (!consent.ok()) return showError("domain-error", "Please tick the box to confirm you own this domain or have the owner's permission to check it.");
+  runCheck(v);
 });
 
 initGate({

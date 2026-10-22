@@ -1,0 +1,23 @@
+/* Admin pricing sheet (/tools/pricing) only. Uses the tokens from brand.css. */
+.pricing-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.pricing-kicker { margin: 0 0 4px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--warn); }
+.pricing-table { width: 100%; border-collapse: collapse; margin: 22px 0 0; }
+.pricing-table caption { text-align: left; font-size: 19px; font-weight: 700; padding-bottom: 8px; }
+.pricing-table th, .pricing-table td { text-align: left; vertical-align: top; padding: 10px 8px; border-bottom: 1px solid var(--border); }
+.pricing-table thead th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.pricing-table tbody th { font-weight: 650; white-space: nowrap; }
+.pricing-amount { font-weight: 800; white-space: nowrap; font-size: 17px; }
+.pricing-sheet .founding-offer { margin-top: 24px; }
+.pricing-sheet .founding-offer h2 { font-size: 18px; margin: 0 0 6px; }
+.pricing-note { border-left: 3px solid var(--warn); padding-left: 10px; }
+@media (max-width: 640px) {
+  .pricing-table tbody th { white-space: normal; }
+  .pricing-table thead { display: none; }
+  .pricing-table tr { display: grid; grid-template-columns: 1fr auto; border-bottom: 1px solid var(--border); padding: 8px 0; }
+  .pricing-table th, .pricing-table td { border: 0; padding: 2px 0; }
+  .pricing-table td:last-child { grid-column: 1 / -1; color: var(--muted); }
+}
+@media print {
+  .pricing-sheet > .pricing-head .lede { display: block; }
+  .pricing-table th, .pricing-table td { border-color: var(--border); }
+}

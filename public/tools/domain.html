@@ -85,6 +85,8 @@
         <input id="target" type="text" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="example.com" required>
         <button type="submit" id="domain-btn">Check domain</button>
       </form>
+      <p class="consent-check no-print"><label><input type="checkbox" id="domain-consent" form="domain-form" required aria-describedby="domain-consent-note"> I own this domain or have the owner's permission to check it.</label></p>
+      <p class="consent-note no-print" id="domain-consent-note"></p>
       <p class="form-error" id="domain-error" role="alert" hidden></p>
       <p class="loading-line no-print" id="domain-loading" hidden><span class="spinner small" aria-hidden="true"></span> Checking DNS and registry records…</p>
       <div class="website-report" id="domain-report" hidden></div>
@@ -93,7 +95,7 @@
 
   <footer class="site-footer no-print">
     <div class="wrap">
-      <p class="footer-main">Office Tech Health Check · Powered by NWIM Project Management · <a href="tel:+15073604479">507-360-4479</a> · <a href="mailto:info@nwimpm.com">info@nwimpm.com</a></p>
+      <p class="footer-main">Office Tech Health Check · Powered by NWIM Project Management · <a href="tel:+15073604479">507-360-4479</a> · <a href="mailto:info@nwimpm.com">info@nwimpm.com</a> · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></p>
     </div>
   </footer>
 

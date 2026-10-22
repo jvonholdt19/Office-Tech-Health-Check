@@ -48,6 +48,8 @@
             <input id="preview-domain" type="text" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="example.com" required>
             <button type="submit" id="preview-btn" class="l-btn l-btn-primary">Check</button>
           </form>
+          <p class="consent-check"><label><input type="checkbox" id="preview-consent" form="preview-form" required aria-describedby="preview-consent-note"> I own this domain or have the owner's permission to check it.</label></p>
+          <p class="consent-note" id="preview-consent-note"></p>
           <p class="form-error" id="preview-error" role="alert" hidden></p>
           <p class="l-loading" id="preview-loading" hidden><span class="spinner small" aria-hidden="true"></span> Checking public records…</p>
 
@@ -60,6 +62,7 @@
               </div>
             </div>
             <ul class="preview-items" id="preview-items"></ul>
+            <div class="preview-disclaimer" id="preview-disclaimer"></div>
             <p class="preview-cta">Want the full check and a fix plan? Call NWIM Project Management at <a href="tel:+15073604479">507-360-4479</a> or email <a href="mailto:info@nwimpm.com">info@nwimpm.com</a>.</p>
           </div>
         </div>
@@ -202,7 +205,7 @@
 
   <footer class="site-footer">
     <div class="wrap">
-      <p class="footer-main">Office Tech Health Check · Powered by NWIM Project Management · <a href="tel:+15073604479">507-360-4479</a> · <a href="mailto:info@nwimpm.com">info@nwimpm.com</a> · <a href="/tools">Tech sign in</a></p>
+      <p class="footer-main">Office Tech Health Check · Powered by NWIM Project Management · <a href="tel:+15073604479">507-360-4479</a> · <a href="mailto:info@nwimpm.com">info@nwimpm.com</a> · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/tools">Tech sign in</a></p>
       <p class="footer-note">Checks use public information only. Results are a snapshot and can change.</p>
     </div>
   </footer>

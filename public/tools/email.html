@@ -89,6 +89,8 @@
                  placeholder="example.com" required>
           <button type="submit" id="scan-btn">Run check</button>
         </form>
+        <p class="consent-check"><label><input type="checkbox" id="scan-consent" form="scan-form" required aria-describedby="scan-consent-note"> I own this domain or have the owner's permission to check it.</label></p>
+        <p class="consent-note" id="scan-consent-note"></p>
         <p class="form-error" id="form-error" role="alert" hidden></p>
       </div>
     </section>
@@ -126,6 +128,7 @@
         <ol id="fix-list"></ol>
       </section>
 
+      <div id="results-disclaimer"></div>
       <p class="report-foot">Checked <span id="scanned-at"></span>. Results come from public records and can change. Some settings (like MFA and backups) can't be seen from outside and need a quick review with you.</p>
       <p class="no-print"><button type="button" class="link-btn" id="scan-another">Check another domain</button> · <a class="link-btn" id="plan-link" href="/plan">Build a Fix Plan</a></p>
     </section>
@@ -134,7 +137,7 @@
 
   <footer class="site-footer no-print">
     <div class="wrap">
-      <p class="footer-main">Office Tech Health Check · Powered by NWIM Project Management · <a href="tel:+15073604479">507-360-4479</a> · <a href="mailto:info@nwimpm.com">info@nwimpm.com</a></p>
+      <p class="footer-main">Office Tech Health Check · Powered by NWIM Project Management · <a href="tel:+15073604479">507-360-4479</a> · <a href="mailto:info@nwimpm.com">info@nwimpm.com</a> · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></p>
     </div>
   </footer>
 

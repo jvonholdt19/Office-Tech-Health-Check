@@ -87,6 +87,17 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
 ::placeholder { color: var(--muted); opacity: 1; }
 input[type="checkbox"] { accent-color: var(--accent); }
 
+/* Consent checkbox on every scan form (text in public/legal.js; the button stays disabled until ticked) */
+.consent-check { margin: 8px 0 0; font-size: 0.9375rem; color: var(--text); }
+.consent-check label { display: inline-flex; align-items: flex-start; gap: 10px; min-height: 44px; padding: 10px 0; cursor: pointer; }
+.consent-note { max-width: 62ch; margin: 0 0 4px 30px; color: var(--muted); font-size: 0.8125rem; line-height: 1.5; }
+.consent-check input { flex: none; width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--accent); cursor: pointer; }
+
+/* Results disclaimer (public/legal.js): lander preview, tool reports and Fix Plans, on screen and in print */
+.results-disclaimer { margin: 18px 0 0; padding: 12px 14px; border: 1px solid var(--border); border-left: 4px solid var(--info); border-radius: var(--radius-sm); background: var(--surface); color: var(--muted); font-size: 0.875rem; line-height: 1.5; }
+.results-disclaimer p { margin: 0; }
+.results-disclaimer .results-disclaimer-plan { margin-top: 8px; color: var(--text); font-weight: 600; }
+
 /* Shared header (same markup on every page; see scripts/site-chrome.js) */
 .site-header { background: var(--bg); border-bottom: 1px solid var(--border); }
 .header-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; min-height: 68px; }
@@ -203,4 +214,5 @@ input[type="checkbox"] { accent-color: var(--accent); }
   /* Tints that carry meaning (status pills, check edges, risk box) print as they are. */
   .pill, .status, .possible, .check, .risk, .grade-cap, .verdict, .safety, .term, .diff-value code { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   pre, code { white-space: pre-wrap; }
+  .results-disclaimer { break-inside: avoid; border-color: var(--border); }
 }

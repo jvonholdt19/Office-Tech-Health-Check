@@ -3,6 +3,7 @@
 // through h(), never innerHTML.
 import { $, h, api, showError, initGate } from "./tech-session.js";
 import { createReportView } from "./report-view.js";
+import { wireConsent } from "./legal.js";
 
 const CATEGORY_ORDER = ["Encryption", "Browser protections", "Page content", "Software"];
 const CATEGORY_BLURB = {
@@ -48,13 +49,16 @@ const view = createReportView({
 });
 const render = (r) => view.render(r);
 
+// Consent checkbox: the button stays disabled until it's ticked (public/legal.js).
+const consent = wireConsent($("website-consent"), $("website-btn"));
+
 async function runCheck(target) {
   showError("website-error", "");
   $("website-report").hidden = true;
   $("website-loading").hidden = false;
   $("website-btn").disabled = true;
   try {
-    const { res, body } = await api(`/api/website?target=${encodeURIComponent(target)}`);
+    const { res, body } = await api(`/api/website?target=${encodeURIComponent(target)}&consent=true`);
     if (res.status === 401) return;
     if (!res.ok) return showError("website-error", body.error || "The check failed. Try again.");
     render(body);
@@ -63,14 +67,16 @@ async function runCheck(target) {
     showError("website-error", "Couldn't reach the server.");
   } finally {
     $("website-loading").hidden = true;
-    $("website-btn").disabled = false;
+    consent.refresh();
   }
 }
 
 $("website-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const v = $("target").value.trim();
-  if (v) runCheck(v);
+  if (!v) return;
+  if (!consent.ok()) return showError("website-error", "Please tick the box to confirm you own this domain or have the owner's permission to check it.");
+  runCheck(v);
 });
 
 initGate({

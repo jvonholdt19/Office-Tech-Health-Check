@@ -59,7 +59,8 @@ async function call(handler, url, { ip = "203.0.113.5", headers = {}, method = "
   await handler({ method, url, headers: { host: "officetech.nwimpm.com", "x-real-ip": ip, "user-agent": "t", ...headers }, socket: {} }, res);
   return { status: res.statusCode, headers: res.headers, json: res.body ? JSON.parse(res.body) : null };
 }
-const preview = (domain, opts) => call(previewHandler, `/api/preview?domain=${encodeURIComponent(domain)}`, opts);
+// Every scan form now carries the consent checkbox; the API needs consent=true (see test/legal.test.js).
+const preview = (domain, opts) => call(previewHandler, `/api/preview?domain=${encodeURIComponent(domain)}&consent=true`, opts);
 
 /* ------------------------------ preview ------------------------------ */
 
@@ -174,7 +175,7 @@ test("preview audit: at most one preview_scan per IP per hour, with ip, domain a
   const audits = events.filter((e) => e.event === "preview_scan");
   assert.equal(audits.length, 2);
   assert.deepEqual(audits.map((e) => e.domain), ["one.example.com", "three.example.com"]);
-  assert.deepEqual(audits[0].data, { grade: "C" });
+  assert.deepEqual(audits[0].data, { grade: "C", consent: true });
   assert.equal(audits[0].ip, "203.0.113.5");
   assert.equal(audits[0].sid, undefined);
   assert.equal(audits[0].ua, undefined);
@@ -190,12 +191,13 @@ test("/api/scan is private now: 401 without a session; works and is audited with
   assert.equal((await call(scanHandler, "/api/scan?domain=example.com")).status, 401);
   setScanDepsForTests(fakeDeps({ mx: { "example.com": [{ exchange: "aspmx.l.google.com", priority: 1 }] } }));
   const cookie = `ohc_tech=${encodeSession(newSession(), SECRET)}`;
-  const r = await call(scanHandler, "/api/scan?domain=example.com", { headers: { cookie } });
+  const r = await call(scanHandler, "/api/scan?domain=example.com&consent=true", { headers: { cookie } });
   assert.equal(r.status, 200);
   for (const k of ["domain", "score", "grade", "coverage", "checks", "fixes", "provider"]) assert.ok(k in r.json, k);
   const e = events.find((x) => x.event === "scan");
   assert.ok(e && e.sid && e.domain === "example.com");
-  assert.deepEqual(Object.keys(e.data).sort(), ["counts", "durationMs", "grade", "score"]);
+  assert.deepEqual(Object.keys(e.data).sort(), ["consent", "counts", "durationMs", "grade", "score"]);
+  assert.equal(e.data.consent, true);
 });
 
 /* ---------------------- pages, routes and redirects ---------------------- */
@@ -254,7 +256,7 @@ test("old links /?domain=x and /?d=x land on /tools/email with the domain filled
   for (const search of ["?d=example.com", "?domain=example.com"]) {
     for (const k of Object.keys(els)) delete els[k];
     Object.assign(globalThis, {
-      document: { getElementById: el, createElement: () => ({}), createTextNode: (t) => t },
+      document: { getElementById: el, createElement: () => ({ append() {}, setAttribute() {} }), createTextNode: (t) => t },
       location: { search, href: `http://x/tools/email${search}`, pathname: "/tools/email" },
       history: { replaceState() {} },
       fetch: async () => ({ status: 200, ok: true, json: async () => ({ authenticated: true }) }),

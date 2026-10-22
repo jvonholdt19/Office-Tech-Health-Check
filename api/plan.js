@@ -1,3 +1,4 @@
+import { consentGiven, CONSENT_REQUIRED } from "../lib/consent.js";
 import { normalizeDomain } from "../lib/domain.js";
 import { runScan } from "../lib/scan.js";
 import { buildPlan, safetyCheckPlan } from "../lib/plan.js";
@@ -96,6 +97,7 @@ export default async function handler(req, res) {
   let domainInput;
   let zoneUpload = null;
   let confirmExport = null;
+  let consent = false;
   if (req.method === "POST") {
     let body;
     try {
@@ -104,18 +106,22 @@ export default async function handler(req, res) {
       return send(res, err.status || 400, { error: err.status ? err.message : "Couldn't read the upload." });
     }
     domainInput = body.domain;
+    consent = consentGiven(null, body);
     zoneUpload = body.zone && typeof body.zone.text === "string" ? body.zone : null;
     confirmExport = body.confirmExport && typeof body.confirmExport.sha256 === "string" ? { sha256: body.confirmExport.sha256 } : null;
   } else {
-    domainInput = new URL(req.url, "http://localhost").searchParams.get("domain");
+    const url = new URL(req.url, "http://localhost");
+    domainInput = url.searchParams.get("domain");
+    consent = consentGiven(url);
   }
   const parsed = normalizeDomain(domainInput || "");
   if (parsed.error) return send(res, 400, { error: parsed.error });
+  if (!consent) return send(res, 400, { error: CONSENT_REQUIRED });
 
   try {
     const result = await buildFullPlan(parsed.domain, zoneUpload, defaultDeps, { confirmExport });
     await audit("plan_build", {
-      sid: auth.sid, ip: auth.ip, ua: auth.ua, domain: parsed.domain, source: zoneUpload ? "upload" : "live",
+      sid: auth.sid, ip: auth.ip, ua: auth.ua, domain: parsed.domain, source: zoneUpload ? "upload" : "live", data: { consent: true },
       // The upload itself is never logged or stored: only its fingerprint, size and format.
       ...(zoneUpload ? { uploadSha256: createHash("sha256").update(zoneUpload.text).digest("hex"), uploadBytes: Buffer.byteLength(zoneUpload.text), uploadFormat: result.zone?.format || null } : {}),
     }, auth.store);
