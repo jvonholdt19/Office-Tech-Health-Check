@@ -6,7 +6,7 @@ Last updated: [DATE]
 > DRAFT – interim version. Not yet reviewed by an attorney.
 
 ## 1. Who we are
-Office Tech Health Check ("the Service") is provided by NWIM Project Management ("we", "us"), [LEGAL ENTITY TYPE, e.g. sole proprietorship], [MAILING ADDRESS]. Contact: info@nwimpm.com.
+Office Tech Health Check ("the Service") is provided by NWIM Project Management ("we", "us"), [LEGAL ENTITY TYPE, e.g. sole proprietorship], 613 8th Street, Sibley, IA 51249. Contact: info@nwimpm.com.
 
 ## 2. What the Service does
 The Service looks at publicly available information about a domain (for example public DNS records, domain registration data, and a single visit to a website's homepage) and reports what it finds. It does not log in to, install anything on, or scan the internal network of any system.
@@ -33,7 +33,7 @@ Do not try to overload, disrupt, or get around the limits or security of the Ser
 We may update these Terms. The "Last updated" date shows when. Continued use after a change means you accept it.
 
 ## 10. Governing law
-These Terms are governed by the laws of the State of Iowa. Any dispute will be handled in the state or federal courts located in [COUNTY] County, Iowa.
+These Terms are governed by the laws of the State of Iowa. Any dispute will be handled in the state or federal courts located in Osceola County, Iowa.
 
 ## 11. Contact
 Questions: info@nwimpm.com
