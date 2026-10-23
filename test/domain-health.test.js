@@ -289,7 +289,7 @@ afterEach(() => {
 });
 async function callDomain(domain, cookie) {
   const res = { statusCode: 0, headers: {}, body: "", setHeader(k, v) { this.headers[k.toLowerCase()] = v; }, end(b) { this.body = b; } };
-  await domainHandler({ method: "GET", url: `/api/domain?domain=${encodeURIComponent(domain)}`, headers: { host: "officetech.nwimpm.com", "x-real-ip": "203.0.113.9", "user-agent": "t", ...(cookie ? { cookie } : {}) }, socket: {} }, res);
+  await domainHandler({ method: "GET", url: `/api/domain?domain=${encodeURIComponent(domain)}&consent=true`, headers: { host: "officetech.nwimpm.com", "x-real-ip": "203.0.113.9", "user-agent": "t", ...(cookie ? { cookie } : {}) }, socket: {} }, res);
   return { status: res.statusCode, headers: res.headers, json: res.body ? JSON.parse(res.body) : null };
 }
 const cookie = () => `ohc_tech=${encodeSession(newSession(), SECRET)}`;
@@ -302,7 +302,8 @@ test("/api/domain: 401 without a session; audited as domain_scan with a summary;
   assert.equal(r.json.domain, D);
   const e = events.find((x) => x.event === "domain_scan");
   assert.ok(e && e.sid && e.domain === D);
-  assert.deepEqual(Object.keys(e.data).sort(), ["counts", "durationMs", "grade", "score"]);
+  assert.deepEqual(Object.keys(e.data).sort(), ["consent", "counts", "durationMs", "grade", "score"]);
+  assert.equal(e.data.consent, true);
   await callDomain(D, c);
   await callDomain(D, c);
   const limited = await callDomain(D, cookie());

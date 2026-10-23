@@ -120,7 +120,7 @@ test("the report shows the disclaimer right after the print header, and the plat
   const reports = { "example.com": await reportFor("example.com"), "example.net": await reportFor("example.net") };
   globalThis.fetch = async (path) => {
     if (path === "/api/session") return { status: 200, ok: true, json: async () => ({ authenticated: true }) };
-    const target = decodeURIComponent(path.split("target=")[1]);
+    const target = new URL(path, "http://localhost").searchParams.get("target");
     return { status: 200, ok: true, json: async () => reports[target] };
   };
   const { DISCLAIMER } = await import(`../public/website.js?render=${Date.now()}`);

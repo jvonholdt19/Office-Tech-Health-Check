@@ -584,7 +584,7 @@ function fakeRes() {
 async function callWebsite(target, cookie, method = "GET") {
   const res = fakeRes();
   const headers = { host: "officetech.nwimpm.com", "x-real-ip": "203.0.113.9", "user-agent": "test-agent", ...(cookie ? { cookie } : {}) };
-  await websiteHandler({ method, url: `/api/website?target=${encodeURIComponent(target)}`, headers, socket: {} }, res);
+  await websiteHandler({ method, url: `/api/website?target=${encodeURIComponent(target)}&consent=true`, headers, socket: {} }, res);
   return { status: res.statusCode, headers: res.headers, json: res.body ? JSON.parse(res.body) : null };
 }
 const sessionCookie = () => `ohc_tech=${encodeSession(newSession(), SECRET)}`;
@@ -604,7 +604,8 @@ test("/api/website: a scan is audited as website_scan with a summary only, and i
   assert.ok(e);
   assert.equal(e.domain, "example.com");
   assert.ok(e.sid && e.ip === "203.0.113.9" && e.ua === "test-agent");
-  assert.deepEqual(Object.keys(e.data).sort(), ["counts", "durationMs", "grade", "score"]);
+  assert.deepEqual(Object.keys(e.data).sort(), ["consent", "counts", "durationMs", "grade", "score"]);
+  assert.equal(e.data.consent, true);
   assert.ok(!JSON.stringify(e).includes("SECRET-HTML"), "no page HTML in the audit log");
   assert.ok(store.events.some((x) => x.event === "website_scan"), "stored durably");
 });

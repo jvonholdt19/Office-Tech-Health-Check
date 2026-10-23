@@ -2,6 +2,7 @@
 // live at /. It calls the private /api/scan with the technician session cookie; signed-out visitors
 // see the access-code gate from tech-session.js.
 import { $, api, initGate } from "./tech-session.js";
+import { fillDisclaimer, wireConsent } from "./legal.js";
 const els = {
   form: $("scan-form"),
   input: $("domain"),
@@ -42,10 +43,15 @@ function headlineFor(report) {
   return `Important gaps found: ${problems} item${problems === 1 ? "" : "s"} to fix`;
 }
 
+// Results disclaimer (public/legal.js) and the consent checkbox: Run check stays disabled until ticked.
+fillDisclaimer($("results-disclaimer"));
+const consent = wireConsent($("scan-consent"), els.button);
+
 let stepTimer;
 function showLoading(on) {
   els.loading.hidden = !on;
-  els.button.disabled = on;
+  if (on) els.button.disabled = true;
+  else consent.refresh();
   els.button.textContent = on ? "Checking…" : "Run check";
   clearInterval(stepTimer);
   const items = [...els.steps.children];
@@ -141,7 +147,7 @@ async function scan(rawDomain) {
   els.report.hidden = true;
   showLoading(true);
   try {
-    const { res, body } = await api(`/api/scan?domain=${encodeURIComponent(rawDomain)}`);
+    const { res, body } = await api(`/api/scan?domain=${encodeURIComponent(rawDomain)}&consent=true`);
     if (res.status === 401) return; // the gate is shown again by api()
     if (!res.ok) throw new Error(body.error || "Something went wrong. Please try again.");
     const url = new URL(location.href);
@@ -160,6 +166,7 @@ els.form.addEventListener("submit", (e) => {
   e.preventDefault();
   const value = els.input.value.trim();
   if (!value) return showError("Enter your business domain, like example.com.");
+  if (!consent.ok()) return showError("Please tick the box to confirm you own this domain or have the owner's permission to check it.");
   scan(value);
 });
 

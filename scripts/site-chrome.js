@@ -17,6 +17,9 @@ import { CONTACT_EMAIL } from "../lib/config.js";
  */
 export const PAGES = {
   "public/index.html": { kind: "lander" },
+  // Public legal pages: the lander's header and footer (indexable: no noindex).
+  "public/terms.html": { kind: "lander" },
+  "public/privacy.html": { kind: "lander" },
   "public/tools.html": { kind: "dashboard" },
   "public/tools/email.html": { kind: "tool", current: "/tools/email" },
   "public/tools/website.html": { kind: "tool", current: "/tools/website" },
@@ -106,7 +109,7 @@ export function header({ kind, current: currentHref }) {
 /** Footer markup: the same contact line everywhere; the lander adds Tech sign in and the public-info note. */
 export function footer({ kind }) {
   const tech = kind !== "lander";
-  const main = `Office Tech Health Check · Powered by NWIM Project Management · <a href="${PHONE.href}">${PHONE.text}</a> · <a href="${EMAIL.href}">${EMAIL.text}</a>`;
+  const main = `Office Tech Health Check · Powered by NWIM Project Management · <a href="${PHONE.href}">${PHONE.text}</a> · <a href="${EMAIL.href}">${EMAIL.text}</a> · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a>`;
   return indent([
     `<footer class="site-footer${tech ? " no-print" : ""}">`,
     `  <div class="wrap">`,

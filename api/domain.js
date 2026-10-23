@@ -1,3 +1,4 @@
+import { consentGiven, CONSENT_REQUIRED } from "../lib/consent.js";
 import { normalizeDomain } from "../lib/domain.js";
 import { runDomainScan } from "../lib/domain-scan.js";
 import { authorize, send, retryAfter } from "../lib/private-api.js";
@@ -14,6 +15,7 @@ export default async function handler(req, res) {
   const url = new URL(req.url, "http://localhost");
   const parsed = normalizeDomain(url.searchParams.get("domain") || "");
   if (parsed.error) return send(res, 400, { error: parsed.error });
+  if (!consentGiven(url)) return send(res, 400, { error: CONSENT_REQUIRED });
   const domain = parsed.domain;
 
   let hit;
@@ -30,7 +32,7 @@ export default async function handler(req, res) {
   try {
     const report = await runDomainScan(domain);
     if (report.error) return send(res, 400, { error: report.error });
-    await audit("domain_scan", { sid: ctx.sid, ip: ctx.ip, ua: ctx.ua, domain, data: { score: report.score, grade: report.grade, counts: report.counts, durationMs: report.durationMs } }, ctx.store);
+    await audit("domain_scan", { sid: ctx.sid, ip: ctx.ip, ua: ctx.ua, domain, data: { score: report.score, grade: report.grade, counts: report.counts, durationMs: report.durationMs, consent: true } }, ctx.store);
     return send(res, 200, report);
   } catch (err) {
     console.error("domain scan failed", domain, err);

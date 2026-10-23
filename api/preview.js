@@ -9,6 +9,7 @@
 // lock a domain for everyone else.
 // Audit: a preview_scan event is written at most once per client per hour ({ ip, domain, grade } only),
 // so audit_log volume stays bounded. No CORS headers are set; GET only; no cookies are read.
+import { consentGiven, CONSENT_REQUIRED } from "../lib/consent.js";
 import { isIP } from "node:net";
 import { normalizeDomain } from "../lib/domain.js";
 import { runPreview } from "../lib/preview.js";
@@ -80,6 +81,7 @@ export default async function handler(req, res) {
   const url = new URL(req.url, "http://localhost");
   const parsed = normalizeDomain(url.searchParams.get("domain") || "");
   if (parsed.error) return send(res, 400, { error: parsed.error });
+  if (!consentGiven(url)) return send(res, 400, { error: CONSENT_REQUIRED });
   const store = getStore();
   if (!store) return send(res, 503, { error: "The preview is unavailable right now. Please try again later." });
 
@@ -98,7 +100,7 @@ export default async function handler(req, res) {
     const result = await (runOverride || runPreview)(parsed.domain);
     try {
       const gate = await store.hit(`preview-audit:${ctx.client}`, 3600);
-      if (gate.count === 1) await audit("preview_scan", { ip, domain: parsed.domain, data: { grade: result.grade } }, store);
+      if (gate.count === 1) await audit("preview_scan", { ip, domain: parsed.domain, data: { grade: result.grade, consent: true } }, store);
     } catch (err) {
       console.warn(`[audit] preview gate unavailable: ${err.message}`);
     }

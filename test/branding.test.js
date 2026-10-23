@@ -20,6 +20,7 @@ const walk = (dir, re, out = []) => {
   return out;
 };
 const HTML = walk(join(root, "public"), /\.html$/);
+const LEGAL = ["public/terms.html", "public/privacy.html"];
 const PAGE_JS = walk(join(root, "public"), /\.js$/);
 const TECH = Object.entries(PAGES).filter(([, p]) => p.kind !== "lander").map(([f]) => f);
 const WITH_MENU = Object.entries(PAGES).filter(([, p]) => p.kind === "tool" || p.kind === "plan").map(([f]) => f);
@@ -40,7 +41,9 @@ test("every page: brand.css first, dark color-scheme, skip link, <main id=main>,
     const sheets = [...html.matchAll(/<link rel="stylesheet" href="([^"]+)">/g)].map((m) => m[1]);
     assert.equal(sheets[0], "/brand.css", `${f}: brand.css is loaded first`);
     assert.match(html, /<meta name="color-scheme" content="dark">/, f);
-    assert.match(html, /<meta name="robots" content="noindex, nofollow">/, f);
+    // The public legal pages (/terms, /privacy) may be indexed; everything else stays noindex.
+    if (!LEGAL.includes(f)) assert.match(html, /<meta name="robots" content="noindex, nofollow">/, f);
+    else assert.ok(!/name="robots"/.test(html), `${f}: indexable`);
     assert.match(html, /<body[^>]*>\n {2}<a class="skip-link" href="#main">Skip to content<\/a>/, `${f}: the skip link is the first thing in <body>`);
     assert.match(html, /<main id="main"[ >]/, f);
     for (const s of ["Powered by NWIM Project Management", 'href="tel:+15073604479"', 'href="mailto:info@nwimpm.com"']) assert.ok(html.includes(s), `${f}: ${s}`);
@@ -278,8 +281,10 @@ test("wording: no non-compete or invented-claim wording on any page or in page J
   // "review" as a verb (a technician reviewing DNS changes) is fine on technician pages; customer/online reviews are not.
   const nonCompete = /\bSEO\b|search engine|Google Business|\b(customer|online|google|yelp|star|5-star) reviews?\b|\breviews? (site|platform|management)\b|\brankings?\b|grow your business|more customers|marketing/i;
   const fabricated = /\b(testimonials?|trusted by|certified|award(-winning|s)?|\d+\+? (years|clients|customers)|star rating)\b/i;
+  // Only exception: the registered legal name on /terms and /privacy (generated from docs/legal).
+  const legalName = "NWIM Project Management, a trade name of Northwest Iowa Marketing LLC, an Iowa limited liability company";
   for (const f of [...HTML, ...PAGE_JS]) {
-    const text = read(f);
+    const text = LEGAL.includes(f) ? read(f).replaceAll(legalName, "") : read(f);
     assert.ok(!nonCompete.test(text), `${f}: "${(text.match(nonCompete) || [])[0]}"`);
     assert.ok(!fabricated.test(text), `${f}: "${(text.match(fabricated) || [])[0]}"`);
   }

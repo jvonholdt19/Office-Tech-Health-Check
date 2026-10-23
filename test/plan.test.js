@@ -417,7 +417,13 @@ test("letterhead: NWIM Project Management, and the word 'marketing' appears nowh
   };
   for (const d of ["api", "lib", "public", "scripts", "docs"]) walk(join(root, d));
   files.push(join(root, "README.md"), join(root, "CLAUDE.md"));
-  for (const f of files) assert.ok(!/marketing/i.test(readFileSync(f, "utf8")), f);
+  // Only exception: the registered legal name in the legal documents and the pages generated from them.
+  const legalName = "NWIM Project Management, a trade name of Northwest Iowa Marketing LLC, an Iowa limited liability company";
+  const legalFile = (f) => /[\\/]docs[\\/]legal[\\/][^\\/]+\.md$|[\\/]public[\\/](terms|privacy)\.html$/.test(f);
+  for (const f of files) {
+    const text = readFileSync(f, "utf8");
+    assert.ok(!/marketing/i.test(legalFile(f) ? text.replaceAll(legalName, "") : text), f);
+  }
   const plan = buildPlan(await neglectedOffice());
   assert.equal(plan.business.fullName, "NWIM Project Management", "the client plan's letterhead");
 });

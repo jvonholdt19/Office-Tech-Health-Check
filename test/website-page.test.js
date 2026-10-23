@@ -34,7 +34,16 @@ test("/tools/website?t=… pre-fills the target but never scans until the form i
   assert.equal(els.target.value, "example.com", "the field is pre-filled from ?t=");
   assert.deepEqual(calls, ["/api/session"], "no scan was requested on page load");
 
+  // Without the consent box ticked, pressing the button doesn't scan (the button is also disabled).
+  assert.equal(els["website-btn"].disabled, true, "Check website starts disabled until consent is ticked");
   els["website-form"].listeners.submit({ preventDefault() {} });
   for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r));
-  assert.deepEqual(calls, ["/api/session", "/api/website?target=example.com"], "the scan runs after the technician presses the button");
+  assert.deepEqual(calls, ["/api/session"], "no scan without consent");
+
+  els["website-consent"].checked = true;
+  els["website-consent"].listeners.change();
+  assert.equal(els["website-btn"].disabled, false, "ticking consent enables the button");
+  els["website-form"].listeners.submit({ preventDefault() {} });
+  for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r));
+  assert.deepEqual(calls, ["/api/session", "/api/website?target=example.com&consent=true"], "the scan runs after the technician ticks consent and presses the button");
 });

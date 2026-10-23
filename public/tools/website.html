@@ -85,6 +85,8 @@
         <input id="target" type="text" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="example.com" required>
         <button type="submit" id="website-btn">Check website</button>
       </form>
+      <p class="consent-check no-print"><label><input type="checkbox" id="website-consent" form="website-form" required aria-describedby="website-consent-note"> I own this domain or have the owner's permission to check it.</label></p>
+      <p class="consent-note no-print" id="website-consent-note"></p>
       <p class="form-error" id="website-error" role="alert" hidden></p>
       <p class="loading-line no-print" id="website-loading" hidden><span class="spinner small" aria-hidden="true"></span> Visiting the homepage and checking its security…</p>
       <div class="website-report" id="website-report" hidden></div>
@@ -93,7 +95,7 @@
 
   <footer class="site-footer no-print">
     <div class="wrap">
-      <p class="footer-main">Office Tech Health Check · Powered by NWIM Project Management · <a href="tel:+15073604479">507-360-4479</a> · <a href="mailto:info@nwimpm.com">info@nwimpm.com</a></p>
+      <p class="footer-main">Office Tech Health Check · Powered by NWIM Project Management · <a href="tel:+15073604479">507-360-4479</a> · <a href="mailto:info@nwimpm.com">info@nwimpm.com</a> · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></p>
     </div>
   </footer>
 

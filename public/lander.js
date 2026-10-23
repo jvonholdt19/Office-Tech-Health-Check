@@ -1,6 +1,8 @@
 // Public lander (/): the "Quick email security check (preview)". Calls /api/preview (public, rate
 // limited) and shows only the grade and a pass/warn/fail line per item. All text goes in through
 // textContent; nothing from the response is parsed as HTML.
+import { fillDisclaimer, wireConsent } from "./legal.js";
+
 const $ = (id) => document.getElementById(id);
 
 // "Built for Local Business" under the hero headline. Confirmed by Josh; set to false to hide it.
@@ -11,6 +13,9 @@ export function applyLocalNote(el, confirmed = LOCAL_NOTE_CONFIRMED) {
   if (el) el.classList.toggle("is-hidden", !confirmed);
 }
 applyLocalNote($("local-note"));
+// The results disclaimer (public/legal.js) and the consent checkbox: Check stays disabled until ticked.
+fillDisclaimer($("preview-disclaimer"));
+const consent = wireConsent($("preview-consent"), $("preview-btn"));
 const STATUS_LABEL = { pass: "Good", warn: "Needs attention", fail: "At risk", unknown: "Couldn't verify", info: "Not applicable" };
 
 function showError(msg) {
@@ -43,12 +48,13 @@ $("preview-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const domain = $("preview-domain").value.trim();
   if (!domain) return showError("Enter your business domain, like example.com.");
+  if (!consent.ok()) return showError("Please tick the box to confirm you own this domain or have the owner's permission to check it.");
   showError("");
   $("preview-result").hidden = true;
   $("preview-loading").hidden = false;
   $("preview-btn").disabled = true;
   try {
-    const res = await fetch(`/api/preview?domain=${encodeURIComponent(domain)}`, { credentials: "omit" });
+    const res = await fetch(`/api/preview?domain=${encodeURIComponent(domain)}&consent=true`, { credentials: "omit" });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) return showError(body.error || "Something went wrong. Please try again.");
     render(body);
@@ -56,6 +62,6 @@ $("preview-form").addEventListener("submit", async (e) => {
     showError("Couldn't reach the server. Please try again.");
   } finally {
     $("preview-loading").hidden = true;
-    $("preview-btn").disabled = false;
+    consent.refresh();
   }
 });

@@ -1,3 +1,4 @@
+import { consentGiven, CONSENT_REQUIRED } from "../lib/consent.js";
 import { parseWebsiteTarget, runWebsiteScan } from "../lib/website-scan.js";
 import { authorize, send, retryAfter } from "../lib/private-api.js";
 import { audit } from "../lib/audit.js";
@@ -14,6 +15,7 @@ export default async function handler(req, res) {
   const url = new URL(req.url, "http://localhost");
   const parsed = parseWebsiteTarget(url.searchParams.get("target") || "");
   if (parsed.error) return send(res, 400, { error: parsed.error });
+  if (!consentGiven(url)) return send(res, 400, { error: CONSENT_REQUIRED });
   const host = parsed.host;
 
   let hit;
@@ -31,7 +33,7 @@ export default async function handler(req, res) {
     const report = await runWebsiteScan(host);
     if (report.error) return send(res, 400, { error: report.error });
     // Summary only: never the page HTML or response headers in bulk.
-    await audit("website_scan", { sid: ctx.sid, ip: ctx.ip, ua: ctx.ua, domain: host, data: { score: report.score, grade: report.grade, counts: report.counts, durationMs: report.durationMs } }, ctx.store);
+    await audit("website_scan", { sid: ctx.sid, ip: ctx.ip, ua: ctx.ua, domain: host, data: { score: report.score, grade: report.grade, counts: report.counts, durationMs: report.durationMs, consent: true } }, ctx.store);
     return send(res, 200, report);
   } catch (err) {
     console.error("website scan failed", host, err);
