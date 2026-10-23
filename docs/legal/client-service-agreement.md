@@ -2,7 +2,7 @@
 
 > DRAFT – not yet reviewed by an attorney. Fill in every [BRACKET] before use.
 
-This Client Service Agreement ("Agreement") is between **NWIM Project Management**, [LEGAL ENTITY TYPE], 613 8th Street, Sibley, IA 51249, info@nwimpm.com ("Provider"), and **[CLIENT LEGAL NAME]**, [CLIENT ADDRESS] ("Client"). Effective date: [DATE].
+This Client Service Agreement ("Agreement") is between **NWIM Project Management, a trade name of Northwest Iowa Marketing LLC, an Iowa limited liability company**, 613 8th Street, Sibley, IA 51249, info@nwimpm.com ("Provider"), and **[CLIENT LEGAL NAME]**, [CLIENT ADDRESS] ("Client"). Effective date: [DATE].
 
 ## 1. Services
 Provider will perform the services described in the attached Fix Plan dated [DATE] ("Services"), for these domain(s): [DOMAIN(S)].
@@ -51,7 +51,7 @@ This Agreement is governed by Iowa law. Disputes go to the state or federal cour
 ## 13. Entire agreement
 This Agreement and the attached Fix Plan are the whole agreement and replace earlier discussions. Changes must be in writing and signed (email agreement from both parties counts [ATTORNEY TO CONFIRM]).
 
-**Provider:** NWIM Project Management — Name: [NAME], Title: [TITLE], Signature: ________ Date: ____
+**Provider:** NWIM Project Management, a trade name of Northwest Iowa Marketing LLC, an Iowa limited liability company — Name: [NAME], Title: [TITLE], Signature: ________ Date: ____
 **Client:** [CLIENT LEGAL NAME] — Name: [NAME], Title: [TITLE], Signature: ________ Date: ____
 
 Attachment A: Fix Plan dated [DATE]

@@ -36,4 +36,4 @@ The Service is for businesses and is not directed to children under 13.
 We will update the "Last updated" date when this policy changes.
 
 ## Contact
-NWIM Project Management, 613 8th Street, Sibley, IA 51249, info@nwimpm.com
+NWIM Project Management, a trade name of Northwest Iowa Marketing LLC, an Iowa limited liability company, 613 8th Street, Sibley, IA 51249, info@nwimpm.com

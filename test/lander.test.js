@@ -280,8 +280,11 @@ test("non-compete: no marketing, SEO, reviews or Google Business wording in publ
   walk(join(root, "public"));
   // "review" as a verb (a technician reviewing DNS changes) is fine; customer/online reviews are not.
   const deny = /\bSEO\b|search engine|Google Business|\b(customer|online|google|yelp|star|5-star) reviews?\b|\breviews? (site|platform|management)\b|\brankings?\b|grow your business|more customers|marketing/i;
+  // Only exception: the registered legal name on /terms and /privacy (generated from docs/legal).
+  const legalName = "NWIM Project Management, a trade name of Northwest Iowa Marketing LLC, an Iowa limited liability company";
   for (const f of files) {
-    const text = readFileSync(f, "utf8");
+    const raw = readFileSync(f, "utf8");
+    const text = /[\\/](terms|privacy)\.html$/.test(f) ? raw.replaceAll(legalName, "") : raw;
     const m = text.match(deny);
     assert.ok(!m, `${f} contains "${m && m[0]}"`);
   }

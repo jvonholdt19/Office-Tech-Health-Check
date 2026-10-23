@@ -281,8 +281,10 @@ test("wording: no non-compete or invented-claim wording on any page or in page J
   // "review" as a verb (a technician reviewing DNS changes) is fine on technician pages; customer/online reviews are not.
   const nonCompete = /\bSEO\b|search engine|Google Business|\b(customer|online|google|yelp|star|5-star) reviews?\b|\breviews? (site|platform|management)\b|\brankings?\b|grow your business|more customers|marketing/i;
   const fabricated = /\b(testimonials?|trusted by|certified|award(-winning|s)?|\d+\+? (years|clients|customers)|star rating)\b/i;
+  // Only exception: the registered legal name on /terms and /privacy (generated from docs/legal).
+  const legalName = "NWIM Project Management, a trade name of Northwest Iowa Marketing LLC, an Iowa limited liability company";
   for (const f of [...HTML, ...PAGE_JS]) {
-    const text = read(f);
+    const text = LEGAL.includes(f) ? read(f).replaceAll(legalName, "") : read(f);
     assert.ok(!nonCompete.test(text), `${f}: "${(text.match(nonCompete) || [])[0]}"`);
     assert.ok(!fabricated.test(text), `${f}: "${(text.match(fabricated) || [])[0]}"`);
   }

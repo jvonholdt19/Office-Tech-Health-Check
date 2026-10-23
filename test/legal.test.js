@@ -24,6 +24,8 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const read = (p) => readFileSync(join(root, p), "utf8");
 const SECRET = "test-session-secret-0123456789-abcdefgh";
 const LEGAL = Object.keys(LEGAL_PAGES);
+// The one place "Marketing" may appear: the registered legal name, where the legal entity must be identified.
+const LEGAL_NAME = "NWIM Project Management, a trade name of Northwest Iowa Marketing LLC, an Iowa limited liability company";
 const HTML = (() => {
   const out = [];
   const walk = (dir) => {
@@ -71,11 +73,25 @@ function fakeDoc() {
 
 /* -------------------------------- documents -------------------------------- */
 
+test("the legal entity is named only where it must be (who we are, parties, contact); the brand everywhere else", () => {
+  const count = (p) => read(p).split(LEGAL_NAME).length - 1;
+  assert.equal(count("docs/legal/terms-of-service.md"), 1);
+  assert.match(read("docs/legal/terms-of-service.md"), new RegExp(`## 1\\. Who we are\\n[^\\n]*provided by ${LEGAL_NAME} \\("we", "us"\\)`));
+  assert.equal(count("docs/legal/privacy-policy.md"), 1);
+  assert.match(read("docs/legal/privacy-policy.md"), new RegExp(`## Contact\\n${LEGAL_NAME}, `));
+  assert.equal(count("docs/legal/client-service-agreement.md"), 2, "the parties paragraph and the Provider signature line");
+  assert.equal(count("docs/legal/scan-results-disclaimer.md"), 0);
+  for (const page of LEGAL) assert.equal(read(page).split(LEGAL_NAME).length - 1, 1, page);
+  for (const f of ["docs/legal/terms-of-service.md", "docs/legal/privacy-policy.md", "docs/legal/client-service-agreement.md"]) {
+    assert.ok(!read(f).includes("[LEGAL ENTITY TYPE"), f);
+  }
+});
+
 test("docs/legal holds the four source documents, without the word 'Marketing'", () => {
   for (const f of ["terms-of-service.md", "privacy-policy.md", "scan-results-disclaimer.md", "client-service-agreement.md"]) {
     const text = read(`docs/legal/${f}`);
     assert.ok(text.length > 300, f);
-    assert.ok(!/marketing/i.test(text), f);
+    assert.ok(!/marketing/i.test(text.replaceAll(LEGAL_NAME, "")), `${f}: "Marketing" only in the legal name`);
     assert.ok(!/â€|Ã/.test(text), `${f}: no garbled characters`);
   }
 });
@@ -105,7 +121,7 @@ test("/terms and /privacy: generated from docs/legal between the markers, with o
     assert.equal(PAGES[page].kind, "lander", `${page}: the public header and footer`);
     assert.ok(!/<script/i.test(html), `${page}: no scripts at all`);
     assert.ok(!/name="robots"/.test(html), `${page}: may be indexed`);
-    assert.ok(!/marketing/i.test(html), page);
+    assert.ok(!/marketing/i.test(html.replaceAll(LEGAL_NAME, "")), page);
   }
   assert.match(read("public/terms.html"), /<h1 id="legal-title">Terms of Service<\/h1>/);
   assert.match(read("public/privacy.html"), /<h1 id="legal-title">Privacy Policy<\/h1>/);
