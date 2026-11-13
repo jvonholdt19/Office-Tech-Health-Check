@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="color-scheme" content="dark">
+  <title>DMARC Tracker – Office Tech Health Check</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/brand.css">
+  <link rel="stylesheet" href="/dmarc-tracker.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  
+  <header class="site-header no-print">
+    <div class="wrap header-inner">
+      <a class="brand" href="/tools">
+        <svg class="brand-mark" width="32" height="32" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#shield-logo"/></svg>
+        <span class="brand-text">
+          <span class="brand-name">Office Tech Health Check</span>
+          <span class="brand-sub">Powered by NWIM Project Management</span>
+        </span>
+      </a>
+      <a class="header-home" id="gate-home" href="/" hidden>Back to home</a>
+      <nav class="tech-nav" id="tech-nav" aria-label="Technician" hidden>
+        <details class="tools-menu">
+          <summary>Tools</summary>
+          <div class="tools-menu-panel">
+            <a class="tools-menu-all" href="/tools">All tools</a>
+            <p class="tools-menu-heading" id="tools-menu-email">Email</p>
+            <ul aria-labelledby="tools-menu-email">
+              <li><a href="/tools/email">Email Security Check</a></li>
+              <li data-feature="breachCheck"><a href="/tools/breach" hidden>Breach Check</a><span class="tools-menu-soon">Breach Check <span class="soon-tag">Coming soon</span></span></li>
+              <li><a href="/dmarc-tracker" aria-current="page">DMARC Tracker</a></li>
+            </ul>
+            <p class="tools-menu-heading" id="tools-menu-web">Web</p>
+            <ul aria-labelledby="tools-menu-web">
+              <li><a href="/tools/website">Website Security Check</a></li>
+            </ul>
+            <p class="tools-menu-heading" id="tools-menu-domain">Domain</p>
+            <ul aria-labelledby="tools-menu-domain">
+              <li><a href="/tools/domain">Domain Health</a></li>
+            </ul>
+            <p class="tools-menu-heading" id="tools-menu-admin" data-admin hidden>Admin</p>
+            <ul aria-labelledby="tools-menu-admin" data-admin hidden>
+              <li><a href="/tools/pricing">Pricing sheet</a></li>
+            </ul>
+          </div>
+        </details>
+        <a href="/plan">Fix Plan</a>
+        <button type="button" class="nav-signout" id="lock-btn" hidden>Sign out</button>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- Shown until GET /api/session answers, so neither the sign-in form nor the tool flashes. -->
+    <section class="session-check" id="session-check" role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      <span class="sr-only">Checking your sign-in…</span>
+      <noscript><p class="session-check-note">The technician tools need JavaScript.</p></noscript>
+    </section>
+
+    <section class="gate wrap" id="gate" aria-labelledby="gate-title" hidden>
+      <div class="gate-card">
+        <svg class="gate-logo" width="48" height="48" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#shield-logo"/></svg>
+        <h1 id="gate-title">Technician sign in</h1>
+        <p class="gate-for">Sign in to use the DMARC Tracker.</p>
+        <form id="gate-form" class="gate-form" autocomplete="off">
+          <label for="access-code">Access code</label>
+          <input id="access-code" type="password" placeholder="Technician access code" autocomplete="current-password" required>
+          <button type="submit" class="btn-primary">Sign in</button>
+        </form>
+        <p class="form-error" id="gate-error" role="alert" hidden></p>
+      </div>
+    </section>
+
+    <div id="tool" class="container" hidden>
+      <h1>DMARC Tracker</h1>
+      <p>Track client domains through staged DMARC enforcement: monitor → quarantine → reject.</p>
+
+      <div id="loading" class="loading-state">
+        <p>Loading tracked domains...</p>
+      </div>
+
+      <div id="content" class="content-hidden">
+      <div id="summary" class="ready-notice summary-hidden">
+        <strong><span id="ready-count">0</span> domain(s) ready to advance</strong>
+      </div>
+
+      <section class="add-form">
+        <h2>Add Domain to Tracker</h2>
+        <form id="add-form">
+          <div class="form-field">
+            <label for="domain">Domain:</label><br>
+            <input type="text" id="domain" name="domain" placeholder="example.com" required>
+          </div>
+          <div class="form-field">
+            <label for="notes">Notes (optional):</label><br>
+            <textarea id="notes" name="notes" rows="3" placeholder="Client name, contact info, special instructions..."></textarea>
+          </div>
+          <button type="submit">Add to Tracker</button>
+        </form>
+      </section>
+
+      <section>
+        <h2>Tracked Domains</h2>
+        <div id="domains-list"></div>
+      </section>
+    </div>
+    </div>
+  </main>
+
+  <footer class="site-footer no-print">
+    <div class="wrap">
+      <p class="footer-main">Office Tech Health Check · Powered by NWIM Project Management · <a href="tel:+15073604479">507-360-4479</a> · <a href="mailto:info@nwimpm.com">info@nwimpm.com</a> · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></p>
+    </div>
+  </footer>
+
+
+  <script src="/dmarc-tracker.js"></script>
+  <script src="/tech-session.js"></script>
+</body>
+</html>

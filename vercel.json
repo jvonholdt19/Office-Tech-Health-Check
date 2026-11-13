@@ -32,8 +32,20 @@
     },
     "api/domain.js": {
       "maxDuration": 30
+    },
+    "api/dmarc-tracker.js": {
+      "maxDuration": 30
+    },
+    "api/cron/dmarc-recheck.js": {
+      "maxDuration": 60
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron/dmarc-recheck",
+      "schedule": "0 9 * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
