@@ -1,14 +1,17 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="color-scheme" content="dark">
   <title>DMARC Tracker – Office Tech Health Check</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/brand.css">
   <link rel="stylesheet" href="/dmarc-tracker.css">
 </head>
 <body>
-  <a href="#main" class="skip-link">Skip to content</a>
+  <a class="skip-link" href="#main">Skip to content</a>
   
   <header class="site-header no-print">
     <div class="wrap header-inner">
@@ -51,15 +54,37 @@
     </div>
   </header>
 
-  <main id="main" class="container">
-    <h1>DMARC Tracker</h1>
-    <p>Track client domains through staged DMARC enforcement: monitor → quarantine → reject.</p>
+  <main id="main">
+    <!-- Shown until GET /api/session answers, so neither the sign-in form nor the tool flashes. -->
+    <section class="session-check" id="session-check" role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      <span class="sr-only">Checking your sign-in…</span>
+      <noscript><p class="session-check-note">The technician tools need JavaScript.</p></noscript>
+    </section>
 
-    <div id="loading" class="loading-state">
-      <p>Loading tracked domains...</p>
-    </div>
+    <section class="gate wrap" id="gate" aria-labelledby="gate-title" hidden>
+      <div class="gate-card">
+        <svg class="gate-logo" width="48" height="48" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#shield-logo"/></svg>
+        <h1 id="gate-title">Technician sign in</h1>
+        <p class="gate-for">Sign in to use the DMARC Tracker.</p>
+        <form id="gate-form" class="gate-form" autocomplete="off">
+          <label for="access-code">Access code</label>
+          <input id="access-code" type="password" placeholder="Technician access code" autocomplete="current-password" required>
+          <button type="submit" class="btn-primary">Sign in</button>
+        </form>
+        <p class="form-error" id="gate-error" role="alert" hidden></p>
+      </div>
+    </section>
 
-    <div id="content" class="content-hidden">
+    <div id="tool" class="container" hidden>
+      <h1>DMARC Tracker</h1>
+      <p>Track client domains through staged DMARC enforcement: monitor → quarantine → reject.</p>
+
+      <div id="loading" class="loading-state">
+        <p>Loading tracked domains...</p>
+      </div>
+
+      <div id="content" class="content-hidden">
       <div id="summary" class="ready-notice summary-hidden">
         <strong><span id="ready-count">0</span> domain(s) ready to advance</strong>
       </div>
@@ -83,6 +108,7 @@
         <h2>Tracked Domains</h2>
         <div id="domains-list"></div>
       </section>
+    </div>
     </div>
   </main>
 

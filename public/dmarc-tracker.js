@@ -29,10 +29,11 @@ function renderDomains() {
   document.getElementById("loading").classList.add("content-hidden");
   document.getElementById("content").classList.remove("content-hidden");
 
-  const readyCount = trackedDomains.filter((d) => d.can_advance).length;
+  const readyDomains = trackedDomains.filter((d) => d.can_advance);
   const summaryEl = document.getElementById("summary");
-  if (readyCount > 0) {
-    document.getElementById("ready-count").textContent = readyCount;
+  
+  if (readyDomains.length > 0) {
+    summaryEl.innerHTML = renderReadySummary(readyDomains);
     summaryEl.classList.remove("summary-hidden");
   } else {
     summaryEl.classList.add("summary-hidden");
@@ -93,6 +94,59 @@ function renderStageExplanation(stage) {
   };
 
   return `<div class="stage-explanation">${explanations[stage] || ""}</div>`;
+}
+
+function renderReadySummary(readyDomains) {
+  const count = readyDomains.length;
+  const plural = count === 1 ? "" : "s";
+  
+  let html = `<strong>🎉 ${count} domain${plural} ready to advance!</strong>`;
+  html += '<div class="ready-list">';
+  
+  for (const d of readyDomains) {
+    const nextStage = stages[d.stage + 1];
+    const nextPolicy = nextStage ? nextStage.policy : "";
+    
+    html += `
+      <div class="ready-item">
+        <div class="ready-item-header">
+          <strong>${escapeHtml(d.domain)}</strong>
+          <span class="ready-badge">Stage ${d.stage} → ${d.stage + 1}</span>
+        </div>
+        <div class="ready-item-body">
+          <p><strong>Next step:</strong> ${escapeHtml(nextStage?.name || "")}</p>
+          <p class="ready-note">${escapeHtml(d.advance_note || "")}</p>
+          <div class="ready-record">
+            <strong>Next DMARC record to paste:</strong>
+            <div class="record-to-copy">
+              <code>v=DMARC1; p=${escapeHtml(nextPolicy)}; rua=mailto:dmarc@nwimpm.com</code>
+              <button onclick="copyToClipboard('v=DMARC1; p=${escapeHtml(nextPolicy)}; rua=mailto:dmarc@nwimpm.com', this)" class="copy-btn">Copy</button>
+            </div>
+            <small>Record name: _dmarc.${escapeHtml(d.domain)}</small>
+          </div>
+          <button onclick="advanceDomain(${d.id})" class="btn-primary ready-btn">Advance ${escapeHtml(d.domain)}</button>
+        </div>
+      </div>
+    `;
+  }
+  
+  html += '</div>';
+  return html;
+}
+
+function copyToClipboard(text, button) {
+  navigator.clipboard.writeText(text).then(() => {
+    const originalText = button.textContent;
+    button.textContent = "Copied!";
+    button.classList.add("copied");
+    setTimeout(() => {
+      button.textContent = originalText;
+      button.classList.remove("copied");
+    }, 2000);
+  }).catch((err) => {
+    console.error("Copy failed:", err);
+    alert("Copy failed. Please copy manually.");
+  });
 }
 
 async function checkDomain(id) {

@@ -1,7 +1,7 @@
 // DMARC Tracker API: manage staged DMARC rollout for client domains.
 // GET: list tracked domains, POST: add/update/advance/remove domains.
 
-import { getSession } from "../lib/session.js";
+import { authorize, send } from "../lib/private-api.js";
 import { getStore } from "../lib/store.js";
 import {
   listTrackedDomains,
@@ -18,14 +18,12 @@ import { defaultDeps } from "../lib/net.js";
 import { normalizeDomain } from "../lib/domain.js";
 
 export default async function handler(req, res) {
-  const session = await getSession(req);
-  if (!session) {
-    return res.status(401).json({ error: "Sign in required" });
-  }
+  const auth = await authorize(req, res);
+  if (!auth) return;
 
   const store = getTrackerStore();
   if (!store) {
-    return res.status(503).json({ error: "Service unavailable" });
+    return send(res, 503, { error: "Service unavailable" });
   }
 
   try {
@@ -42,7 +40,7 @@ export default async function handler(req, res) {
           : 0,
       }));
       
-      return res.status(200).json({
+      return send(res, 200, {
         domains: enriched,
         stages: DMARC_STAGES,
       });
@@ -55,24 +53,24 @@ export default async function handler(req, res) {
       if (action === "add") {
         const parsed = normalizeDomain(domain);
         if (parsed.error) {
-          return res.status(400).json({ error: parsed.error });
+          return send(res, 400, { error: parsed.error });
         }
 
         const trackerId = await addTrackedDomain(
           store,
           parsed.domain,
-          session.sid,
+          auth.sid,
           note || null
         );
 
         await getStore().audit({
           event: "dmarc_tracker_add",
-          sid: session.sid,
+          sid: auth.sid,
           domain: parsed.domain,
           data: { trackerId, note },
         });
 
-        return res.status(200).json({
+        return send(res, 200, {
           success: true,
           trackerId,
           domain: parsed.domain,
@@ -81,14 +79,14 @@ export default async function handler(req, res) {
 
       if (action === "check") {
         if (!id) {
-          return res.status(400).json({ error: "id required" });
+          return send(res, 400, { error: "id required" });
         }
 
         // Get the tracker entry
         const domains = await listTrackedDomains(store);
         const tracker = domains.find((d) => d.id === id);
         if (!tracker) {
-          return res.status(404).json({ error: "Tracker not found" });
+          return send(res, 404, { error: "Tracker not found" });
         }
 
         // Run the advancement check
@@ -114,12 +112,12 @@ export default async function handler(req, res) {
 
         await getStore().audit({
           event: "dmarc_tracker_check",
-          sid: session.sid,
+          sid: auth.sid,
           domain: tracker.domain,
           data: { id, canAdvance: checkResult.canAdvance },
         });
 
-        return res.status(200).json({
+        return send(res, 200, {
           success: true,
           domain: tracker.domain,
           check: checkResult,
@@ -128,18 +126,18 @@ export default async function handler(req, res) {
 
       if (action === "advance") {
         if (!id) {
-          return res.status(400).json({ error: "id required" });
+          return send(res, 400, { error: "id required" });
         }
 
         const domains = await listTrackedDomains(store);
         const tracker = domains.find((d) => d.id === id);
         if (!tracker) {
-          return res.status(404).json({ error: "Tracker not found" });
+          return send(res, 404, { error: "Tracker not found" });
         }
 
         // Verify eligibility (unless forcing with skipToStage)
         if (!skipToStage && !tracker.can_advance) {
-          return res.status(400).json({
+          return send(res, 400, {
             error: "Domain is not ready to advance",
             reason: tracker.advance_note,
           });
@@ -149,13 +147,13 @@ export default async function handler(req, res) {
           store,
           id,
           skipToStage || null,
-          session.sid,
+          auth.sid,
           note || null
         );
 
         await getStore().audit({
           event: "dmarc_tracker_advance",
-          sid: session.sid,
+          sid: auth.sid,
           domain: tracker.domain,
           data: {
             id,
@@ -166,7 +164,7 @@ export default async function handler(req, res) {
           },
         });
 
-        return res.status(200).json({
+        return send(res, 200, {
           success: true,
           domain: tracker.domain,
           newStage: skipToStage || tracker.stage + 1,
@@ -175,36 +173,36 @@ export default async function handler(req, res) {
 
       if (action === "remove") {
         if (!id) {
-          return res.status(400).json({ error: "id required" });
+          return send(res, 400, { error: "id required" });
         }
 
         const domains = await listTrackedDomains(store);
         const tracker = domains.find((d) => d.id === id);
         if (!tracker) {
-          return res.status(404).json({ error: "Tracker not found" });
+          return send(res, 404, { error: "Tracker not found" });
         }
 
         await removeTrackedDomain(store, id);
 
         await getStore().audit({
           event: "dmarc_tracker_remove",
-          sid: session.sid,
+          sid: auth.sid,
           domain: tracker.domain,
           data: { id },
         });
 
-        return res.status(200).json({
+        return send(res, 200, {
           success: true,
           domain: tracker.domain,
         });
       }
 
-      return res.status(400).json({ error: "Invalid action" });
+      return send(res, 400, { error: "Invalid action" });
     }
 
-    return res.status(405).json({ error: "Method not allowed" });
+    return send(res, 405, { error: "Method not allowed" });
   } catch (err) {
     console.error("[dmarc-tracker]", err);
-    return res.status(500).json({ error: err.message });
+    return send(res, 500, { error: err.message });
   }
 }

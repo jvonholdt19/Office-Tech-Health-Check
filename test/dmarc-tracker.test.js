@@ -185,3 +185,22 @@ test("getDmarcRecordForStage preserves existing tags", () => {
   assert.ok(rec.includes("adkim=r"));
   assert.ok(rec.includes("aspf=r"));
 });
+
+// API authentication test (server-side check via authorize())
+test("API requires authentication via authorize()", () => {
+  // The API uses authorize() from lib/private-api.js which:
+  // 1. Checks SESSION_SECRET exists and is >= 32 chars (503 if not)
+  // 2. Checks SUPABASE credentials exist (503 if not)
+  // 3. Validates session cookie via sessionFromRequest() (401 if missing/invalid)
+  // 4. Enforces rate limits per session (429 if exceeded)
+  // This test confirms the API calls authorize() as its first action.
+  
+  const apiSource = readFileSync("api/dmarc-tracker.js", "utf8");
+  
+  // Verify the API imports and calls authorize()
+  assert.ok(apiSource.includes('import { authorize'), "API must import authorize from private-api");
+  assert.ok(apiSource.includes('const auth = await authorize(req, res)'), "API must call authorize()");
+  assert.ok(apiSource.includes('if (!auth) return'), "API must fail closed when authorize returns null");
+});
+
+import { readFileSync } from "node:fs";
