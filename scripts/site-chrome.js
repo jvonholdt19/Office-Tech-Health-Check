@@ -27,6 +27,7 @@ export const PAGES = {
   "public/tools/breach.html": { kind: "tool", current: "/tools/breach" },
   "public/tools/pricing.html": { kind: "tool", current: "/tools/pricing" },
   "public/plan.html": { kind: "plan" },
+  "public/dmarc-tracker.html": { kind: "tool", current: "/dmarc-tracker" },
 };
 
 export const PHONE = { href: "tel:+15073604479", text: "507-360-4479" };
