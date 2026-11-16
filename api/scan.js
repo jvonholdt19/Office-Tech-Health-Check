@@ -3,6 +3,8 @@ import { normalizeDomain } from "../lib/domain.js";
 import { runScan } from "../lib/scan.js";
 import { authorize, send } from "../lib/private-api.js";
 import { audit } from "../lib/audit.js";
+import { generateFixSteps, detectDnsHostFromNS } from "../lib/fix-guides-steps.js";
+import { BUSINESS } from "../lib/config.js";
 
 // Private endpoint (technician session): GET /api/scan?domain=example.com → the full email & domain report.
 // The public lander uses /api/preview instead. Rate limiting is the durable per-session limit in
@@ -17,8 +19,35 @@ export default async function handler(req, res) {
   if (!consentGiven(url)) return send(res, 400, { error: CONSENT_REQUIRED });
   try {
     const report = await runScan(parsed.domain, scanDeps);
+    
+    // Attach step-by-step fix guides to failing/warning checks
+    const scanData = {
+      provider: report.provider,
+      dnsHost: report.dnsHost,
+      registrar: report.registrar,
+    };
+    
+    const config = {
+      reportAddress: BUSINESS.dmarcReportAddress,
+    };
+    
+    const checksWithSteps = report.checks.map((check) => {
+      if (check.status === "fail" || check.status === "warn") {
+        const steps = generateFixSteps(check, parsed.domain, scanData, config);
+        if (steps) {
+          return { ...check, fixSteps: steps };
+        }
+      }
+      return check;
+    });
+    
+    const enhancedReport = {
+      ...report,
+      checks: checksWithSteps,
+    };
+    
     await audit("scan", { sid: auth.sid, ip: auth.ip, ua: auth.ua, domain: parsed.domain, data: { score: report.score, grade: report.grade, counts: report.counts, durationMs: report.durationMs, consent: true } }, auth.store);
-    return send(res, 200, report);
+    return send(res, 200, enhancedReport);
   } catch (err) {
     console.error("scan failed", parsed.domain, err);
     return send(res, 500, { error: "The scan failed unexpectedly. Please try again." });
